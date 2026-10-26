@@ -50,6 +50,12 @@ final class Store {
 
     // MARK: session
     func boot() async {
+        // Simulator screenshots in CI: `-demo chats|chat|call` fills the app with sample data, no server.
+        if let i = CommandLine.arguments.firstIndex(of: "-demo") {
+            loadDemo(i + 1 < CommandLine.arguments.count ? CommandLine.arguments[i + 1] : "chats")
+            booting = false
+            return
+        }
         await loadConfig()
         if API.token != nil {
             do {
@@ -60,6 +66,35 @@ final class Store {
             } catch { clearSession() }
         }
         booting = false
+    }
+
+    private func loadDemo(_ screen: String) {
+        let now = Date().timeIntervalSince1970 * 1000
+        let meU = User(id: 1, username: "Cats_yt", displayName: "Cats", banner: "#5865f2", role: "owner", verified: true, badge: "разработчик", online: true)
+        let bob = User(id: 2, username: "bob", displayName: "Боб", online: true)
+        let kate = User(id: 3, username: "kate", displayName: "Катя", verified: true, online: false, lastSeen: now - 600_000)
+        me = meU; remember([meU, bob, kate]); loggedIn = true; connected = true
+        func msg(_ id: Int64, _ chat: Int64, _ user: Int64, _ text: String, _ ago: Double) -> Message {
+            Message(id: id, chatId: chat, userId: user, text: text, createdAt: now - ago * 60_000)
+        }
+        var voice = msg(5, 1, 2, "", 3); voice.file = FileRef(url: "/x.m4a", name: "Голосовое сообщение", size: 40000, kind: "voice", duration: 14)
+        var replied = msg(6, 1, 1, "Да, уже ставлю новую версию", 1); replied.replyTo = ReplyRef(id: 4, userId: 2, text: "Видел, вышло нативное приложение?")
+        let list = [msg(1, 1, 2, "Привет! Как дела?", 30), msg(2, 1, 1, "Привет, всё отлично 🙂", 29), msg(3, 1, 1, "Смотри, что я сделал", 28),
+                    msg(4, 1, 2, "Видел, вышло нативное приложение?", 5), voice, replied]
+        messages[1] = list
+        chats = [
+            1: Chat(id: 1, type: "direct", createdAt: now, members: [meU, bob], lastMessage: list.last, unread: 0, othersRead: 6),
+            2: Chat(id: 2, type: "direct", createdAt: now, members: [meU, kate], lastMessage: msg(7, 2, 3, "Созвонимся вечером?", 50), unread: 2),
+            3: Chat(id: 3, type: "group", title: "Ethic команда", createdAt: now, members: [meU, bob, kate], lastMessage: msg(8, 3, 2, "Сервер обновлён", 120), unread: 0,
+                    call: CallInfo(participants: [2, 3])),
+        ]
+        if screen == "chat" { Nav.shared.openChat(1) }
+        if screen == "call" {
+            Calls.shared.ui = CallUI(chatId: 1, title: "Боб", connected: true, startedAt: Date().addingTimeInterval(-83), tiles: [
+                Tile(id: "2", userId: 2, name: "Боб", local: false, screen: false, speaking: true, micOn: true, video: nil),
+                Tile(id: "1", userId: 1, name: "Вы", local: true, screen: false, speaking: false, micOn: false, video: nil),
+            ], micOn: false, status: "2 участн.")
+        }
     }
 
     func loadConfig() async {

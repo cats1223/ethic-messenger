@@ -32,8 +32,11 @@ jobs:
           xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Ethic.app
           xcrun simctl launch "$UDID" com.ethic.messenger
           sleep 12; xcrun simctl io "$UDID" screenshot ../shot-1.png
-          xcrun simctl launch "$UDID" com.ethic.messenger -demo 1 || true
-          sleep 3; xcrun simctl io "$UDID" screenshot ../shot-2.png
+          for screen in chats chat call; do
+            xcrun simctl terminate "$UDID" com.ethic.messenger || true
+            xcrun simctl launch "$UDID" com.ethic.messenger -demo $screen
+            sleep 5; xcrun simctl io "$UDID" screenshot ../shot-$screen.png
+          done
       - uses: actions/upload-artifact@v7
         with:
           name: ios-screens
