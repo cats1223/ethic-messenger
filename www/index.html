@@ -2,9 +2,31 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Ethic</title>
-  <meta http-equiv="refresh" content="0; url=https://176-124-220-95.sslip.io:8443">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="color-scheme" content="dark">
+  <meta name="format-detection" content="telephone=no">
+  <title>Ethic Messenger</title>
+  <link rel="stylesheet" href="vendor/ionic-css/ionic.bundle.css">
+  <link rel="stylesheet" href="vendor/ionic-css/dark.always.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // iOS look on iPhone, Material on Android. ?mode=ios|md overrides (for testing in a browser).
+    (function () {
+      var forced = new URLSearchParams(location.search).get('mode');
+      var plat = window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+      var mode = forced || (plat === 'ios' ? 'ios' : plat === 'android' ? 'md' : (/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'ios' : 'md'));
+      window.Ionic = { config: { mode: mode, swipeBackEnabled: true, hardwareBackButton: false } };
+    })();
+  </script>
+  <script type="module" src="vendor/ionic/ionic.esm.js"></script>
+  <script src="vendor/livekit-client.umd.js"></script>
 </head>
-<body style="background:#000"></body>
+<body>
+  <ion-app>
+    <ion-nav id="nav"></ion-nav>
+  </ion-app>
+  <button id="callPill" class="call-pill hidden">Вернуться к звонку</button>
+  <div id="audioSink" hidden></div>
+  <script type="module" src="js/app.js"></script>
+</body>
 </html>

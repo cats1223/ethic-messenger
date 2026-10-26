@@ -6,7 +6,7 @@ on:
       version:
         description: 'Версия, например 1.0.0'
         required: true
-        default: '1.0.0'
+        default: '1.1.0'
   push:
     tags: ['v*']
 
@@ -33,6 +33,7 @@ jobs:
           echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
           echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
       - run: npm ci
+      - run: npm run vendor
       - run: npx cap add android
       - name: Icons and splash
         run: >
@@ -85,6 +86,7 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i iphoneos
       - run: npm ci
+      - run: npm run vendor
       - run: npx cap add ios
       - name: Icons and splash
         run: >

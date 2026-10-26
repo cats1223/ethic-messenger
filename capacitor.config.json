@@ -4,17 +4,31 @@
   "webDir": "www",
   "backgroundColor": "#000000",
   "server": {
-    "url": "https://176-124-220-95.sslip.io:8443",
-    "cleartext": false,
-    "errorPath": "offline.html"
+    "androidScheme": "https"
   },
   "android": {
-    "allowMixedContent": false,
-    "appendUserAgent": "EthicApp/Android"
+    "allowMixedContent": false
   },
   "ios": {
     "contentInset": "never",
-    "appendUserAgent": "EthicApp/iOS",
-    "limitsNavigationsToAppBoundDomains": false
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": false,
+      "backgroundColor": "#000000",
+      "showSpinner": false
+    },
+    "Keyboard": {
+      "resize": "native",
+      "style": "DARK",
+      "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#000000",
+      "overlaysWebView": false
+    }
   }
 }
