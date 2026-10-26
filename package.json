@@ -1,0 +1,21 @@
+{
+  "name": "ethic-messenger-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ethic Messenger — Android and iOS apps",
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "patch:android": "node scripts/patch-android.mjs",
+    "patch:ios": "node scripts/patch-ios.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.3"
+  }
+}

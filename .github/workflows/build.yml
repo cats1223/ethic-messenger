@@ -1,0 +1,133 @@
+name: Сборка приложений
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия, например 1.0.0'
+        required: true
+        default: '1.0.0'
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Version
+        run: |
+          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
+          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npx cap add android
+      - name: Icons and splash
+        run: >
+          npx capacitor-assets generate --android
+          --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000'
+          --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
+      - run: node scripts/patch-android.mjs
+      - run: npx cap sync android
+      - name: Build
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --out Ethic-Messenger.apk aligned.apk
+          "$BT/apksigner" verify --print-certs Ethic-Messenger.apk | head -3
+          rm release.keystore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Ethic-Messenger.apk
+
+  ios:
+    name: iOS (IPA)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Version and Xcode
+        run: |
+          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
+          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - run: npm ci
+      - run: npx cap add ios
+      - name: Icons and splash
+        run: >
+          npx capacitor-assets generate --ios
+          --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000'
+          --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
+      - run: node scripts/patch-ios.mjs
+      - run: npx cap sync ios
+      - name: Build (unsigned)
+        working-directory: ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
+          xcodebuild $SRC -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/Ethic-Messenger.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: Ethic-Messenger.ipa
+
+  release:
+    name: Релиз
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Version
+        run: |
+          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
+          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          name: Ethic Messenger v${{ env.VERSION_NAME }}
+          body: |
+            ## Ethic Messenger v${{ env.VERSION_NAME }}
+
+            **Android** — скачайте `Ethic-Messenger.apk`, откройте файл и разрешите установку из этого источника.
+
+            **iPhone** — скачайте `Ethic-Messenger.ipa` и установите через [Sideloadly](https://sideloadly.io) или [AltStore](https://altstore.io) со своим Apple ID. С бесплатным Apple ID приложение нужно переподписывать раз в 7 дней.
+          files: |
+            dist/Ethic-Messenger.apk
+            dist/Ethic-Messenger.ipa

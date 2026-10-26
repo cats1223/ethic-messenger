@@ -1,0 +1,20 @@
+{
+  "appId": "com.ethic.messenger",
+  "appName": "Ethic Messenger",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "server": {
+    "url": "https://176-124-220-95.sslip.io:8443",
+    "cleartext": false,
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "appendUserAgent": "EthicApp/Android"
+  },
+  "ios": {
+    "contentInset": "never",
+    "appendUserAgent": "EthicApp/iOS",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}
