@@ -33,6 +33,17 @@ export const Native = {
   },
 };
 
+// Android call integration (native/android/EthicCallPlugin.java): ring stream, call service, speaker.
+export const CallNative = {
+  get on() { return Native.on && Native.platform() === 'android' && !!window.Capacitor?.isPluginAvailable?.('EthicCall'); },
+  call(method, opts = {}) {
+    if (!CallNative.on) return Promise.resolve(null);
+    const p = Native.plugin('EthicCall');
+    return (p?.[method] ? p[method](opts) : window.Capacitor.nativePromise('EthicCall', method, opts)).catch((e) => { console.warn('EthicCall', method, e); return null; });
+  },
+  onHangup(fn) { if (CallNative.on) Native.plugin('EthicCall')?.addListener?.('hangup', fn); },
+};
+
 // ---------- state ----------
 export const S = {
   token: store.get('token', null),
@@ -400,8 +411,40 @@ export const Sound = (() => {
     retro: { name: 'Старый телефон', period: 3000, play(c, t) { for (let i = 0; i < 20; i++) note(c, t + i * 0.05, i % 2 ? 480 : 440, 0.05, { type: 'square', vol: 0.04, attack: 0.002 }); } },
     none: { name: 'Без звука', period: 2000, play() {} },
   };
-  let loop = null;
-  const stop = () => { clearInterval(loop); loop = null; };
+  if (CallNative.on) RINGTONES.system = { name: 'Системный рингтон', period: 2000, play() {} };
+  // Android: render the chosen ringtone to a WAV once and let the system play it on the ring stream.
+  const wavCache = new Map();
+  async function renderWav(r) {
+    if (wavCache.has(r)) return wavCache.get(r);
+    const rate = 22050, len = Math.round(rate * r.period / 1000);
+    const c = new OfflineAudioContext(1, len, rate);
+    r.play(c, 0.02);
+    const data = (await c.startRendering()).getChannelData(0);
+    const buf = new DataView(new ArrayBuffer(44 + len * 2));
+    const str = (o, s) => [...s].forEach((ch, i) => buf.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, 'RIFF'); buf.setUint32(4, 36 + len * 2, true); str(8, 'WAVEfmt ');
+    buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true);
+    buf.setUint32(24, rate, true); buf.setUint32(28, rate * 2, true); buf.setUint16(32, 2, true); buf.setUint16(34, 16, true);
+    str(36, 'data'); buf.setUint32(40, len * 2, true);
+    for (let i = 0; i < len; i++) buf.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i] * 2.5)) * 0x7fff, true);
+    let bin = '';
+    const bytes = new Uint8Array(buf.buffer);
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const b64 = btoa(bin);
+    wavCache.set(r, b64);
+    return b64;
+  }
+  async function nativeRing(id) {
+    const silent = id === 'none';
+    const wav = id === 'system' || silent ? undefined : await renderWav(RINGTONES[id] || RINGTONES.classic);
+    return CallNative.call('ringStart', { wav, silent });
+  }
+  let loop = null, nativeRinging = false, previewTimer = null;
+  const stop = () => {
+    clearInterval(loop); loop = null;
+    clearTimeout(previewTimer);
+    if (nativeRinging) { nativeRinging = false; CallNative.call('ringStop'); }
+  };
   const startLoop = (fn, period) => {
     stop();
     try { const c = getCtx(); fn(c, c.currentTime + 0.02); loop = setInterval(() => fn(c, c.currentTime + 0.02), period); } catch {}
@@ -410,8 +453,18 @@ export const Sound = (() => {
   return {
     RINGTONES,
     unlock: () => { try { getCtx(); } catch {} },
-    ring(id = store.get('ringtone', 'classic')) { const r = RINGTONES[id] || RINGTONES.classic; startLoop((c, t) => r.play(c, t), r.period); },
-    preview(id) { stop(); once((c, t) => (RINGTONES[id] || RINGTONES.classic).play(c, t)); },
+    // Returns true when the system rings (and vibrates) itself.
+    ring(id = store.get('ringtone', 'classic')) {
+      stop();
+      if (CallNative.on) { nativeRinging = true; nativeRing(id).catch(() => {}); return true; }
+      const r = RINGTONES[id] || RINGTONES.classic; startLoop((c, t) => r.play(c, t), r.period);
+      return false;
+    },
+    preview(id) {
+      stop();
+      if (CallNative.on) { nativeRinging = true; nativeRing(id).catch(() => {}); previewTimer = setTimeout(stop, 3000); return; }
+      once((c, t) => (RINGTONES[id] || RINGTONES.classic).play(c, t));
+    },
     ringback() { startLoop((c, t) => note(c, t, 425, 1.0, { vol: 0.06, attack: 0.02 }), 4000); },
     stop,
     join() { once((c, t) => { note(c, t, 587, 0.16, { type: 'triangle', vol: 0.14, attack: 0.005 }); note(c, t + 0.11, 880, 0.24, { type: 'triangle', vol: 0.14, attack: 0.005 }); }); },

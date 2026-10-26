@@ -6,7 +6,7 @@ import './screens.js';
 import './chat.js';
 import './call.js';
 
-window.ETHIC_VERSION = '1.1.0';
+window.ETHIC_VERSION = '1.1.1';
 const { on, Native, Sound } = C;
 
 on('toast', (msg) => toast(msg));

@@ -4,7 +4,7 @@ import { $, esc, I, avatarOf, groupAvatar, checkOf, toast, presentModal } from '
 import { Page } from './page.js';
 import { openPicker } from './screens.js';
 
-const { S, on, api, Native, Sound, NS } = C;
+const { S, on, api, Native, Sound, NS, CallNative } = C;
 const LK = window.LivekitClient;
 
 let call = null; // { chatId, room, title, startedAt, timer, tiles, mic, facing, modal, el }
@@ -57,6 +57,12 @@ export async function startCall(chatId, video, fallbackTitle) {
     setTimeout(() => { if (call?.room === room && room.remoteParticipants.size === 0) Sound.stop(); }, 60_000);
   }
   await publishMic(room);
+  // Android: tell the system a call is running (mic keeps working in background, call audio mode).
+  if (CallNative.on && call?.room === room) {
+    const t = document.createElement('div'); t.innerHTML = call.title;
+    const r = await CallNative.call('callStart', { title: t.textContent, speaker: true });
+    if (call?.room === room) call.speaker = r?.speaker ?? true; else CallNative.call('callStop');
+  }
   if (video) { try { await room.localParticipant.setCameraEnabled(true, { facingMode: 'user' }); } catch (e) { toast(C.mediaError(e, 'камере')); } }
   rerender();
 }
@@ -87,6 +93,7 @@ export function leaveCall(fromDisconnect = false) {
   call = null;
   Sound.stop();
   Sound.leave();
+  CallNative.call('callStop');
   clearInterval(c.timer);
   C.wsSend({ type: 'call:leave', chatId: c.chatId });
   if (!fromDisconnect) c.room.disconnect();
@@ -134,6 +141,9 @@ function renderControls() {
   b('cam').innerHTML = cam ? I.video : I.videoOff;
   b('cam').className = `round ${cam ? '' : 'off'}`;
   b('flip').classList.toggle('hidden', !cam);
+  b('spk').classList.toggle('hidden', !CallNative.on);
+  b('spk').innerHTML = call.speaker ? I.speaker : I.earpiece;
+  b('spk').className = `round ${CallNative.on ? '' : 'hidden'} ${call.speaker ? 'on' : ''}`;
 }
 
 function renderTiles() {
@@ -187,6 +197,7 @@ class CallPage extends Page {
         </div>
         <div class="grid" id="grid"></div>
         <div class="controls">
+          <button class="round hidden" id="spk" aria-label="Динамик"></button>
           <button class="round" id="mic" aria-label="Микрофон"></button>
           <button class="round" id="cam" aria-label="Камера"></button>
           <button class="round hidden" id="flip" aria-label="Перевернуть камеру">${I.flip}</button>
@@ -195,6 +206,11 @@ class CallPage extends Page {
       </div>`;
     $(this, '#min').addEventListener('click', () => call?.modal?.dismiss());
     $(this, '#leave').addEventListener('click', () => leaveCall());
+    $(this, '#spk').addEventListener('click', async () => {
+      const r = await CallNative.call('setSpeaker', { on: !call.speaker });
+      if (call) call.speaker = r?.speaker ?? !call.speaker;
+      Native.haptic(); renderControls();
+    });
     $(this, '#mic').addEventListener('click', async () => {
       const lp = call.room.localParticipant;
       try { await lp.setMicrophoneEnabled(!lp.isMicrophoneEnabled); } catch (e) { toast(C.mediaError(e, 'микрофону')); }
@@ -237,8 +253,8 @@ function onRing(ev) {
   el.avatar = chat?.type === 'group' ? groupAvatar(chat) : avatarOf(ev.from);
   el.kind = ev.invite ? `${ev.from.displayName} зовёт вас в звонок` : `${chat?.type === 'group' ? `${ev.from.displayName} · ` : ''}${ev.video ? 'Видеозвонок' : 'Аудиозвонок'} Ethic`;
   incoming = { ev, timer: setTimeout(() => hideIncoming(), 45_000), vib: null };
-  Sound.ring();
-  if (navigator.vibrate) { navigator.vibrate([600, 400]); incoming.vib = setInterval(() => navigator.vibrate([600, 400]), 1000); }
+  // On Android the system rings and vibrates itself (ring volume, silent mode).
+  if (!Sound.ring() && navigator.vibrate) { navigator.vibrate([600, 400]); incoming.vib = setInterval(() => navigator.vibrate([600, 400]), 1000); }
   presentModal(el, { card: false, cls: 'call-modal' }).then((m) => { if (incoming) incoming.modal = m; else m.dismiss(); });
 }
 function hideIncoming() {
@@ -277,6 +293,7 @@ on('callstate', (ev) => { if (incoming && incoming.ev.chatId === ev.chatId && !e
 on('declined', (ev) => { if (call && call.chatId === ev.chatId) { toast(`${C.userName(ev.userId)} отклоняет звонок`); Sound.stop(); } });
 on('invited', (ev) => { if (call && call.chatId === ev.chatId && ev.by !== S.me.id) toast(`${C.userName(ev.by)} зовёт: ${ev.user?.displayName || C.userName(ev.userId)}`); });
 document.getElementById('callPill').addEventListener('click', showCall);
+CallNative.onHangup(() => leaveCall());
 
 customElements.define('ethic-call', CallPage);
 customElements.define('ethic-incoming', IncomingPage);

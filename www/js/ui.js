@@ -103,6 +103,8 @@ export const I = {
   checks: ic('<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>'),
   clock: ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   flip: ic('<path d="M20 7h-3.2l-1.6-2.4A1.4 1.4 0 0 0 14 4h-4a1.4 1.4 0 0 0-1.2.6L7.2 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M9 13.5a3 3 0 0 1 5.2-2M15 12.5a3 3 0 0 1-5.2 2M14.2 9.5v2h-2M9.8 16.5v-2h2"/>'),
+  speaker: ic('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>'),
+  earpiece: ic('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 5h2"/>'),
   minimize: ic('<path d="m6 9 6 6 6-6"/>'),
   screen: ic('<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>'),
   shield: ic('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
