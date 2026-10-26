@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Версия, например 1.0.0'
+        description: 'Версия, например 2.0.0'
         required: true
-        default: '1.1.2'
+        default: '2.0.0'
   push:
     tags: ['v*']
 
@@ -19,29 +19,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
       - name: Version
         run: |
           VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
           echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
-      - run: npm ci
-      - run: npm run vendor
-      - run: npx cap add android
-      - name: Icons and splash
-        run: >
-          npx capacitor-assets generate --android
-          --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000'
-          --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
-      - run: node scripts/patch-android.mjs
-      - run: npx cap sync android
+          echo "VERSION_CODE=$(( 100 + ${{ github.run_number }} ))" >> "$GITHUB_ENV"
       - name: Build
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
@@ -60,80 +47,19 @@ jobs:
             --out Ethic-Messenger.apk aligned.apk
           "$BT/apksigner" verify --print-certs Ethic-Messenger.apk | head -3
           rm release.keystore
-      - uses: actions/upload-artifact@v7
-        with:
-          name: android
-          path: Ethic-Messenger.apk
-
-  ios:
-    name: iOS (IPA)
-    # Xcode 26 / iOS 26 SDK: the app gets the Liquid Glass system UI.
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - name: Version and Xcode 26
-        run: |
-          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
-          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
-          ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$XC" ]; then echo "::error::На раннере нет Xcode 26 — Liquid Glass без него не собрать"; exit 1; fi
-          sudo xcode-select -s "$XC"
-          xcodebuild -version
-          xcodebuild -showsdks | grep -i iphoneos
-      - run: npm ci
-      - run: npm run vendor
-      - run: npx cap add ios
-      - name: Icons and splash
-        run: >
-          npx capacitor-assets generate --ios
-          --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000'
-          --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
-      - run: node scripts/patch-ios.mjs
-      - run: npx cap sync ios
-      - name: Build (unsigned)
-        working-directory: ios/App
-        run: |
-          if [ -d App.xcworkspace ]; then SRC="-workspace App.xcworkspace"; else SRC="-project App.xcodeproj"; fi
-          xcodebuild $SRC -scheme App -configuration Release -sdk iphoneos \
-            -destination 'generic/platform=iOS' -derivedDataPath build \
-            MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
-          mkdir -p Payload
-          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -qry "$GITHUB_WORKSPACE/Ethic-Messenger.ipa" Payload
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ios
-          path: Ethic-Messenger.ipa
-
-  release:
-    name: Релиз
-    needs: [android, ios]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          path: dist
-          merge-multiple: true
-      - name: Version
-        run: |
-          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
-          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
-      - uses: softprops/action-gh-release@v3
+      - name: Release
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.VERSION_NAME }}
           name: Ethic Messenger v${{ env.VERSION_NAME }}
           body: |
-            ## Ethic Messenger v${{ env.VERSION_NAME }}
+            ## Ethic Messenger v${{ env.VERSION_NAME }} — нативное приложение для Android
 
-            **Android** — скачайте `Ethic-Messenger.apk`, откройте файл и разрешите установку из этого источника.
+            Приложение полностью переписано на Kotlin + Jetpack Compose: свой интерфейс без браузера внутри,
+            звонки через нативный WebRTC (LiveKit), как настоящие телефонные звонки.
 
-            **iPhone** — скачайте `Ethic-Messenger.ipa` и установите через [Sideloadly](https://sideloadly.io) или [AltStore](https://altstore.io) со своим Apple ID. С бесплатным Apple ID приложение нужно переподписывать раз в 7 дней.
-          files: |
-            dist/Ethic-Messenger.apk
-            dist/Ethic-Messenger.ipa
+            **Установка:** скачайте `Ethic-Messenger.apk`, откройте файл и разрешите установку из этого источника.
+            Ставится поверх старой версии, вход сохраняется.
+
+            **iPhone:** нативная версия в работе, пока используйте `Ethic-Messenger.ipa` из [v1.1.2](../../releases/tag/v1.1.2).
+          files: Ethic-Messenger.apk

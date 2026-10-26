@@ -1,9 +1,19 @@
-node_modules/
-/android/
-/ios/
+# Android build output and local settings
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
 *.keystore
 *.jks
-*.apk
-*.ipa
+# iOS (later)
+ios/build/
 .DS_Store
-www/vendor/
+# local test helpers
+node_modules/
+/shot*.png
+/shot.sh
+/bob.mjs
+/bob.token

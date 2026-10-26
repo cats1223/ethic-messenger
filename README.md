@@ -5,10 +5,14 @@
 # Ethic Messenger — приложения для Android и iOS
 
 Мобильные приложения мессенджера **Ethic Messenger**: чаты, голосовые сообщения, фото и файлы,
-аудио- и видеозвонки, демонстрация экрана (на компьютере), шумоподавление.
+аудио- и видеозвонки, шумоподавление.
 
-Приложение — нативная оболочка ([Capacitor](https://capacitorjs.com)) над веб-версией Ethic,
-поэтому дизайн и все функции всегда совпадают с сайтом, а обновления сайта сразу появляются в приложении.
+**Android** — нативное приложение на Kotlin + Jetpack Compose (Material 3, чёрно-белая тема).
+Звонки идут через нативный WebRTC ([LiveKit](https://livekit.io)) как настоящие телефонные:
+громкость звонка, работа в фоне с уведомлением, громкая связь, Bluetooth-гарнитуры.
+
+**iPhone** — нативная версия на SwiftUI с Liquid Glass в работе; пока доступна версия
+[v1.1.2](../../releases/tag/v1.1.2).
 
 ## Установка
 
@@ -26,24 +30,20 @@
 
 ## Сборка
 
-Сборка идёт автоматически в GitHub Actions (`.github/workflows/build.yml`):
+Сборка идёт автоматически в GitHub Actions (`.github/workflows/build.yml`): Android собирается на Ubuntu,
+подписывается ключом из секретов репозитория (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) и выкладывается в релиз.
 
-- **Android** — Ubuntu, подпись ключом из секретов репозитория;
-- **iOS** — macOS, неподписанный `.ipa`;
-- оба файла выкладываются в релиз.
+Запустить вручную: **Actions → Сборка приложений → Run workflow**, указать версию.
 
-Запустить вручную: вкладка **Actions → Сборка приложений → Run workflow**, указать версию.
-Или отправить тег: `git tag v1.0.1 && git push --tags`.
-
-Секреты для подписи Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Локально: `cd android && ./gradlew assembleDebug` (debug-сборка ходит на локальный сервер `http://10.0.2.2:3999`).
 
 ## Структура
 
 | Путь | Что это |
 | --- | --- |
-| `capacitor.config.json` | Название, ID приложения, адрес сервера |
-| `assets/` | Логотип, иконки и заставка (генерируются `npm run icons`) |
-| `scripts/patch-android.mjs` | Разрешения микрофона/камеры и версия для Android |
-| `scripts/patch-ios.mjs` | Описания доступа к микрофону/камере/фото для iOS |
-| `www/offline.html` | Экран «Нет подключения» |
+| `android/app/src/main/java/com/ethic/messenger/data/` | API, WebSocket, состояние приложения |
+| `android/app/src/main/java/com/ethic/messenger/call/` | Звонки: LiveKit, фоновая служба |
+| `android/app/src/main/java/com/ethic/messenger/media/` | Рингтоны и звуки, голосовые сообщения |
+| `android/app/src/main/java/com/ethic/messenger/ui/` | Экраны на Jetpack Compose |
+| `assets/` | Логотип и иконка |
