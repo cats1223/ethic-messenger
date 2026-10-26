@@ -1,0 +1,40 @@
+name: Проверка iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ios:
+    name: iOS — сборка и снимок симулятора
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Xcode 26 and XcodeGen
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1); sudo xcode-select -s "$XC"; xcodebuild -version
+          curl -sSfL -o xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q xcodegen.zip -d xg && echo "$PWD/xg/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Generate project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build for simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Ethic.xcodeproj -scheme Ethic -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build \
+            | grep -E "error:|warning: unre|BUILD" | head -80
+      - name: Screenshots
+        working-directory: ios
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print([x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')][-1])")
+          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Ethic.app
+          xcrun simctl launch "$UDID" com.ethic.messenger
+          sleep 12; xcrun simctl io "$UDID" screenshot ../shot-1.png
+          xcrun simctl launch "$UDID" com.ethic.messenger -demo 1 || true
+          sleep 3; xcrun simctl io "$UDID" screenshot ../shot-2.png
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios-screens
+          path: shot-*.png

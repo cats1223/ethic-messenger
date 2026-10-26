@@ -47,19 +47,64 @@ jobs:
             --out Ethic-Messenger.apk aligned.apk
           "$BT/apksigner" verify --print-certs Ethic-Messenger.apk | head -3
           rm release.keystore
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: Ethic-Messenger.apk
+
+  ios:
+    name: iOS (IPA)
+    # Xcode 26 / iOS 26 SDK: SwiftUI gets the Liquid Glass system design.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Version, Xcode 26 and XcodeGen
+        run: |
+          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
+          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
+          XC=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1); sudo xcode-select -s "$XC"; xcodebuild -version
+          curl -sSfL -o xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q xcodegen.zip -d xg && echo "$PWD/xg/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Build (unsigned)
+        working-directory: ios
+        run: |
+          xcodegen generate
+          xcodebuild -project Ethic.xcodeproj -scheme Ethic -configuration Release -sdk iphoneos             -destination 'generic/platform=iOS' -derivedDataPath build             MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="${{ github.run_number }}"             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Ethic.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/Ethic-Messenger.ipa" Payload
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios
+          path: Ethic-Messenger.ipa
+
+  release:
+    name: Релиз
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Version
+        run: |
+          VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
+          echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.VERSION_NAME }}
           name: Ethic Messenger v${{ env.VERSION_NAME }}
           body: |
-            ## Ethic Messenger v${{ env.VERSION_NAME }} — нативное приложение для Android
+            ## Ethic Messenger v${{ env.VERSION_NAME }}
 
-            Приложение полностью переписано на Kotlin + Jetpack Compose: свой интерфейс без браузера внутри,
-            звонки через нативный WebRTC (LiveKit), как настоящие телефонные звонки.
+            Нативные приложения: Android на Kotlin + Jetpack Compose, iPhone на SwiftUI с Liquid Glass (iOS 26).
+            Звонки через нативный WebRTC (LiveKit), как настоящие телефонные.
 
-            **Установка:** скачайте `Ethic-Messenger.apk`, откройте файл и разрешите установку из этого источника.
-            Ставится поверх старой версии, вход сохраняется.
+            **Android** — скачайте `Ethic-Messenger.apk`, откройте файл и разрешите установку из этого источника. Ставится поверх старой версии.
 
-            **iPhone:** нативная версия в работе, пока используйте `Ethic-Messenger.ipa` из [v1.1.2](../../releases/tag/v1.1.2).
-          files: Ethic-Messenger.apk
+            **iPhone** — скачайте `Ethic-Messenger.ipa` и установите через [Sideloadly](https://sideloadly.io) или [AltStore](https://altstore.io) со своим Apple ID. С бесплатным Apple ID приложение нужно переподписывать раз в 7 дней.
+          files: |
+            dist/Ethic-Messenger.apk
+            dist/Ethic-Messenger.ipa

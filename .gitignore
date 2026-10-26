@@ -17,3 +17,5 @@ node_modules/
 /shot.sh
 /bob.mjs
 /bob.token
+ios/Ethic.xcodeproj/
+ios/build/
