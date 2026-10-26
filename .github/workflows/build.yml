@@ -66,20 +66,24 @@ jobs:
 
   ios:
     name: iOS (IPA)
-    runs-on: macos-latest
+    # Xcode 26 / iOS 26 SDK: the app gets the Liquid Glass system UI.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-      - name: Version and Xcode
+      - name: Version and Xcode 26
         run: |
           VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
           echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
-          XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::На раннере нет Xcode 26 — Liquid Glass без него не собрать"; exit 1; fi
           sudo xcode-select -s "$XC"
           xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
       - run: npm ci
       - run: npx cap add ios
       - name: Icons and splash

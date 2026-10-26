@@ -20,5 +20,7 @@ if (!plist.includes('<key>UIBackgroundModes</key>')) {
   append('\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>audio</string>\n\t</array>\n');
   added++;
 }
+// Liquid Glass: never opt out of the iOS 26 design.
+plist = plist.replace(/\s*<key>UIDesignRequiresCompatibility<\/key>\s*<(true|false)\/>/, '');
 fs.writeFileSync(plistPath, plist);
 console.log(`ios patched: ${added} Info.plist entries`);
