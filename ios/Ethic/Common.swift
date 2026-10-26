@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-let blue = Color(red: 0x1D / 255, green: 0x9B / 255, blue: 0xF0 / 255)
-let green = Color(red: 0x23 / 255, green: 0xA5 / 255, blue: 0x5A / 255)
-let red = Color(red: 0xED / 255, green: 0x42 / 255, blue: 0x45 / 255)
+let blue = Color(red: 0.114, green: 0.608, blue: 0.941)
+let green = Color(red: 0.137, green: 0.647, blue: 0.353)
+let red = Color(red: 0.929, green: 0.259, blue: 0.271)
 let surface1 = Color(white: 0.06)
 let surface2 = Color(white: 0.11)
 let surface3 = Color(white: 0.16)
