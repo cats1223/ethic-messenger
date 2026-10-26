@@ -109,9 +109,26 @@ public class EthicCallPlugin extends Plugin {
 
     // ---------- ongoing call ----------
 
+    /**
+     * Must run before the call's audio starts playing: the WebView picks the output stream
+     * (voice call vs media) from the audio mode at the moment playback begins.
+     */
     @PluginMethod
     public void callStart(PluginCall call) {
         ringHalt();
+        AudioManager am = audio();
+        if (am != null) am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        inCall = true;
+        setVolumeStream(AudioManager.STREAM_VOICE_CALL);
+        setSpeakerOn(call.getBoolean("speaker", true) && !headsetConnected());
+        JSObject res = new JSObject();
+        res.put("speaker", isSpeakerOn());
+        call.resolve(res);
+    }
+
+    /** Foreground service; started once the mic permission is granted (required on Android 14+). */
+    @PluginMethod
+    public void callService(PluginCall call) {
         Context ctx = getContext();
         Intent i = new Intent(ctx, CallService.class);
         i.putExtra("title", call.getString("title", "Звонок"));
@@ -120,13 +137,12 @@ public class EthicCallPlugin extends Plugin {
         } catch (Exception e) {
             // Without the service the call still works while the app is open.
         }
-        AudioManager am = audio();
-        if (am != null) am.setMode(AudioManager.MODE_IN_COMMUNICATION);
-        inCall = true;
-        setSpeakerOn(call.getBoolean("speaker", true) && !headsetConnected());
-        JSObject res = new JSObject();
-        res.put("speaker", isSpeakerOn());
-        call.resolve(res);
+        call.resolve();
+    }
+
+    /** Volume keys change the call volume during a call (not media). */
+    private void setVolumeStream(int stream) {
+        if (getActivity() != null) getActivity().runOnUiThread(() -> getActivity().setVolumeControlStream(stream));
     }
 
     @PluginMethod
@@ -153,6 +169,7 @@ public class EthicCallPlugin extends Plugin {
         ctx.stopService(new Intent(ctx, CallService.class));
         if (!inCall) return;
         inCall = false;
+        setVolumeStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
         AudioManager am = audio();
         if (am == null) return;
         if (Build.VERSION.SDK_INT >= 31) am.clearCommunicationDevice();

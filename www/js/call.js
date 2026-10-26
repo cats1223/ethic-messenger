@@ -44,6 +44,8 @@ export async function startCall(chatId, video, fallbackTitle) {
     .on(E.Reconnected, tick)
     .on(E.Disconnected, () => { if (call?.room === room) leaveCall(true); });
 
+  // Android: switch to call audio before any call sound plays (call volume, not media).
+  if (CallNative.on) { const r = await CallNative.call('callStart', { speaker: true }); call.speaker = r?.speaker ?? true; }
   try { await room.connect(creds.url, creds.token); }
   catch (err) { console.error(err); toast('Не удалось подключиться к звонку'); return leaveCall(true); }
   C.wsSend({ type: 'call:join', chatId });
@@ -57,11 +59,11 @@ export async function startCall(chatId, video, fallbackTitle) {
     setTimeout(() => { if (call?.room === room && room.remoteParticipants.size === 0) Sound.stop(); }, 60_000);
   }
   await publishMic(room);
-  // Android: tell the system a call is running (mic keeps working in background, call audio mode).
+  // Android: foreground service keeps the mic working when the app is in the background.
   if (CallNative.on && call?.room === room) {
     const t = document.createElement('div'); t.innerHTML = call.title;
-    const r = await CallNative.call('callStart', { title: t.textContent, speaker: true });
-    if (call?.room === room) call.speaker = r?.speaker ?? true; else CallNative.call('callStop');
+    await CallNative.call('callService', { title: t.textContent });
+    if (call?.room !== room) CallNative.call('callStop');
   }
   if (video) { try { await room.localParticipant.setCameraEnabled(true, { facingMode: 'user' }); } catch (e) { toast(C.mediaError(e, 'камере')); } }
   rerender();
