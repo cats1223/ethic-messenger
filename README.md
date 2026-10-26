@@ -11,8 +11,8 @@
 Звонки идут через нативный WebRTC ([LiveKit](https://livekit.io)) как настоящие телефонные:
 громкость звонка, работа в фоне с уведомлением, громкая связь, Bluetooth-гарнитуры.
 
-**iPhone** — нативная версия на SwiftUI с Liquid Glass в работе; пока доступна версия
-[v1.1.2](../../releases/tag/v1.1.2).
+**iPhone** — нативное приложение на SwiftUI: на iOS 26 интерфейс в стиле Liquid Glass
+(системные вкладки и панели, стеклянные кнопки звонка и поле ввода). Звонки через LiveKit Swift SDK.
 
 ## Установка
 
@@ -46,4 +46,6 @@
 | `android/app/src/main/java/com/ethic/messenger/call/` | Звонки: LiveKit, фоновая служба |
 | `android/app/src/main/java/com/ethic/messenger/media/` | Рингтоны и звуки, голосовые сообщения |
 | `android/app/src/main/java/com/ethic/messenger/ui/` | Экраны на Jetpack Compose |
+| `ios/project.yml` | Проект iOS (генерируется XcodeGen) |
+| `ios/Ethic/` | Приложение iOS на SwiftUI |
 | `assets/` | Логотип и иконка |
