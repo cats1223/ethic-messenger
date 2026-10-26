@@ -9,9 +9,13 @@ let surface2 = Color(white: 0.11)
 let surface3 = Color(white: 0.16)
 let muted = Color(white: 0.6)
 
-private let avatarColors: [Color] = [0x5865F2, 0x3BA55C, 0xFAA61A, 0xED4245, 0xEB459E, 0x1ABC9C, 0x9B59B6, 0x607D8B].map {
-    Color(red: Double(($0 >> 16) & 0xFF) / 255, green: Double(($0 >> 8) & 0xFF) / 255, blue: Double($0 & 0xFF) / 255)
+private func rgb(_ v: Int) -> Color {
+    let r = Double((v >> 16) & 0xFF) / 255
+    let g = Double((v >> 8) & 0xFF) / 255
+    let b = Double(v & 0xFF) / 255
+    return Color(red: r, green: g, blue: b)
 }
+private let avatarColors: [Color] = [0x5865F2, 0x3BA55C, 0xFAA61A, 0xED4245, 0xEB459E, 0x1ABC9C, 0x9B59B6, 0x607D8B].map(rgb)
 func colorOf(_ id: Int64) -> Color { avatarColors[Int(abs(id) % Int64(avatarColors.count))] }
 func initials(_ name: String) -> String {
     let parts = name.split(separator: " ").prefix(2)
@@ -20,7 +24,7 @@ func initials(_ name: String) -> String {
 }
 func hexColor(_ s: String) -> Color? {
     guard s.hasPrefix("#"), s.count == 7, let v = Int(s.dropFirst(), radix: 16) else { return nil }
-    return Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    return rgb(v)
 }
 
 struct AvatarView: View {

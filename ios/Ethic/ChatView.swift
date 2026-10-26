@@ -310,6 +310,15 @@ struct Bubble: View {
     @State private var store = Store.shared
     @Environment(\.openURL) private var openURL
 
+    private var shape: UnevenRoundedRectangle {
+        let big: CGFloat = 18, small: CGFloat = 6
+        let tl: CGFloat = (mine || first) ? big : small
+        let bl: CGFloat = (mine || last) ? big : small
+        let br: CGFloat = (!mine || last) ? big : small
+        let tr: CGFloat = (!mine || first) ? big : small
+        return UnevenRoundedRectangle(topLeadingRadius: tl, bottomLeadingRadius: bl, bottomTrailingRadius: br, topTrailingRadius: tr)
+    }
+
     var body: some View {
         let fg: Color = mine ? .black : .white
         let sub: Color = mine ? Color(white: 0.35) : muted
@@ -352,9 +361,7 @@ struct Bubble: View {
                 .padding(.trailing, photoOnly ? 6 : 0).padding(.bottom, photoOnly ? 4 : 0)
             }
             .padding(.horizontal, photoOnly ? 3 : 12).padding(.vertical, photoOnly ? 3 : 8)
-            .background(mine ? Color.white : Color(white: 0.11), in: UnevenRoundedRectangle(
-                topLeadingRadius: mine || first ? 18 : 6, bottomLeadingRadius: mine || last ? 18 : 6,
-                bottomTrailingRadius: !mine || last ? 18 : 6, topTrailingRadius: !mine || first ? 18 : 6))
+            .background(mine ? Color.white : Color(white: 0.11), in: shape)
             if !mine { Spacer(minLength: 50) }
         }
         .padding(.top, first ? 6 : 0)
@@ -397,6 +404,12 @@ struct VoiceRow: View {
     let f: FileRef
     let mine: Bool
     @State private var player = VoicePlayer.shared
+
+    /// Waveform-like bar heights derived from the message id.
+    private func bar(_ i: Int) -> CGFloat {
+        let v: Int64 = (m.id &* 31 &+ Int64(i) &* 17) % 18
+        return CGFloat(6 + Int(abs(v)))
+    }
     var body: some View {
         let url = f.url
         let active = player.playing == url
@@ -409,7 +422,7 @@ struct VoiceRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 2) {
                     ForEach(0..<26, id: \.self) { i in
-                        let h = CGFloat(6 + abs(Int((m.id &* 31 &+ Int64(i) &* 17) % 18)))
+                        let h = bar(i)
                         RoundedRectangle(cornerRadius: 1.5)
                             .fill(active && Double(i) / 26 <= player.progress ? blue : fg.opacity(0.35))
                             .frame(width: 3, height: h)

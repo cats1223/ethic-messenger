@@ -39,6 +39,13 @@ struct ChatsView: View {
 struct ChatRow: View {
     let chat: Chat
     @State private var store = Store.shared
+
+    private var lastLine: String {
+        guard let last = chat.lastMessage else { return previewText(nil) }
+        var prefix = ""
+        if last.userId == store.me?.id { prefix = "Вы: " } else if chat.isGroup { prefix = store.userName(last.userId) + ": " }
+        return prefix + previewText(last)
+    }
     var body: some View {
         let other = chat.isGroup ? nil : store.other(chat)
         let typers = store.typingNames(chat.id)
@@ -52,9 +59,7 @@ struct ChatRow: View {
                     if let m = chat.lastMessage { Text(shortWhen(m.createdAt)).font(.caption).foregroundStyle(muted) }
                 }
                 HStack {
-                    let last = chat.lastMessage
-                    let prefix = last == nil ? "" : last!.userId == store.me?.id ? "Вы: " : chat.isGroup ? "\(store.userName(last!.userId)): " : ""
-                    Text(typers.isEmpty ? prefix + previewText(last) : "печатает…")
+                    Text(typers.isEmpty ? lastLine : "печатает…")
                         .font(.subheadline).foregroundStyle(typers.isEmpty ? muted : blue).lineLimit(1)
                     Spacer()
                     if chat.unread > 0 {
