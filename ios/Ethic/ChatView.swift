@@ -25,7 +25,7 @@ final class VoicePlayer {
         try? AVAudioSession.sharedInstance().setActive(true)
         let p = AVPlayer(url: u)
         player = p; playing = url; paused = false; progress = 0
-        observer = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] t in
+        observer = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1.0 / 60, preferredTimescale: 600), queue: .main) { [weak self] t in
             MainActor.assumeIsolated {
                 guard let self, let d = p.currentItem?.duration.seconds, d.isFinite, d > 0 else { return }
                 self.progress = t.seconds / d
@@ -423,9 +423,14 @@ struct VoiceRow: View {
                 HStack(spacing: 2) {
                     ForEach(0..<26, id: \.self) { i in
                         let h = bar(i)
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(active && Double(i) / 26 <= player.progress ? blue : fg.opacity(0.35))
-                            .frame(width: 3, height: h)
+                        // Each bar fills partially, so progress moves smoothly instead of bar by bar.
+                        let f = active ? min(1, max(0, player.progress * 26 - Double(i))) : 0
+                        ZStack(alignment: .leading) {
+                            Rectangle().fill(fg.opacity(0.35))
+                            Rectangle().fill(blue).frame(width: 3 * f)
+                        }
+                        .frame(width: 3, height: h)
+                        .clipShape(RoundedRectangle(cornerRadius: 1.5))
                     }
                 }
                 .frame(height: 26)

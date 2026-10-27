@@ -84,6 +84,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -344,8 +345,13 @@ private fun VoiceContent(m: Message, f: FileRef, mine: Boolean) {
                 val n = 28
                 for (i in 0 until n) {
                     val h = 6 + ((m.id * 31 + i * 17) % 18).toInt().let { if (it < 0) -it else it }
-                    val played = active && i.toFloat() / n <= pos
-                    Box(Modifier.weight(1f).heightIn(min = h.dp, max = h.dp).clip(RoundedCornerShape(2.dp)).background(if (played) Blue else fg.copy(alpha = 0.35f)))
+                    // Each bar fills partially, so progress moves smoothly instead of bar by bar.
+                    val f = if (active) (pos * n - i).coerceIn(0f, 1f) else 0f
+                    Box(
+                        Modifier.weight(1f).heightIn(min = h.dp, max = h.dp).clip(RoundedCornerShape(2.dp))
+                            .background(fg.copy(alpha = 0.35f))
+                            .drawBehind { drawRect(Blue, size = androidx.compose.ui.geometry.Size(size.width * f, size.height)) },
+                    )
                 }
             }
             Text(durText(f.duration), color = fg.copy(alpha = 0.6f), fontSize = 12.sp)

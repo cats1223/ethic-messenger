@@ -79,7 +79,7 @@ object VoicePlayer {
             while (isActive) {
                 val d = p.duration
                 if (d > 0) position.value = (p.currentPosition.toFloat() / d).coerceIn(0f, 1f)
-                delay(100)
+                delay(16) // every frame: smooth progress
             }
         }
     }
