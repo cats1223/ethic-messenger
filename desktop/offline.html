@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Ethic Messenger</title>
+<style>
+  body { margin: 0; height: 100vh; display: grid; place-items: center; background: #000; color: #fff; font: 15px "Segoe UI", sans-serif; text-align: center; }
+  p { color: #999; }
+  button { background: #fff; color: #000; border: 0; border-radius: 12px; padding: 10px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div>
+    <h2>Нет соединения с сервером</h2>
+    <p>Проверьте интернет. Пробуем подключиться снова…</p>
+    <button id="retry">Повторить</button>
+  </div>
+<script>
+  const url = new URLSearchParams(location.search).get('url') || 'https://176-124-220-95.sslip.io:8443';
+  const go = () => { location.href = url; };
+  document.getElementById('retry').onclick = go;
+  setTimeout(go, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Демонстрация экрана</title>
+<style>
+  body { margin: 0; background: #111; color: #fff; font: 14px "Segoe UI", sans-serif; display: flex; flex-direction: column; height: 100vh; }
+  h1 { font-size: 18px; margin: 18px 20px 4px; }
+  p { margin: 0 20px 12px; color: #999; }
+  .tabs { display: flex; gap: 6px; margin: 0 20px 12px; }
+  .tabs button { background: #222; border: 0; color: #bbb; padding: 7px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+  .tabs button.on { background: #fff; color: #000; }
+  .grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 20px 12px; align-content: start; }
+  .item { background: #1b1b1b; border: 2px solid transparent; border-radius: 12px; padding: 8px; cursor: pointer; }
+  .item:hover { border-color: #444; }
+  .item.sel { border-color: #1d9bf0; }
+  .item img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; border-radius: 6px; display: block; }
+  .item div { margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid #222; }
+  .foot button { border: 0; border-radius: 10px; padding: 9px 18px; font: inherit; cursor: pointer; }
+  #cancel { background: #222; color: #fff; }
+  #share { background: #fff; color: #000; font-weight: 600; }
+  #share:disabled { opacity: .4; cursor: default; }
+</style>
+</head>
+<body>
+  <h1>Что показать?</h1>
+  <p>Звук компьютера передаётся только при показе всего экрана.</p>
+  <div class="tabs"><button data-t="screen" class="on">Экраны</button><button data-t="window">Окна</button></div>
+  <div class="grid" id="grid"></div>
+  <div class="foot"><button id="cancel">Отмена</button><button id="share" disabled>Показать</button></div>
+<script>
+  let list = [], tab = 'screen', sel = null;
+  const grid = document.getElementById('grid');
+  const share = document.getElementById('share');
+  function render() {
+    grid.textContent = '';
+    for (const s of list.filter((x) => x.id.startsWith(tab))) {
+      const el = document.createElement('div');
+      el.className = 'item' + (s.id === sel ? ' sel' : '');
+      const img = document.createElement('img'); img.src = s.thumb;
+      const name = document.createElement('div'); name.textContent = s.name;
+      el.append(img, name);
+      el.onclick = () => { sel = s.id; share.disabled = false; render(); };
+      el.ondblclick = () => window.picker.choose(s.id);
+      grid.append(el);
+    }
+  }
+  document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => {
+    tab = b.dataset.t;
+    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+    render();
+  });
+  share.onclick = () => sel && window.picker.choose(sel);
+  document.getElementById('cancel').onclick = () => window.picker.choose(null);
+  window.picker.onSources((s) => { list = s; sel = (list.find((x) => x.id.startsWith('screen')) || {}).id || null; share.disabled = !sel; render(); });
+</script>
+</body>
+</html>

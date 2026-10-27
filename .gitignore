@@ -19,3 +19,5 @@ node_modules/
 /bob.token
 ios/Ethic.xcodeproj/
 ios/build/
+desktop/node_modules/
+desktop/dist/
