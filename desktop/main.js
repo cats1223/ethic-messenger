@@ -33,10 +33,14 @@ function createWindow() {
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
     show: false,
+    // No standard Windows frame: minimize / maximize / close are drawn inside our black top strip, like Discord.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#000000', symbolColor: '#cfcfcf', height: TITLE_H },
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true },
   });
   win.removeMenu();
   win.once('ready-to-show', () => win.show());
+  win.webContents.on('dom-ready', addTitleBar);
   win.loadURL(SITE);
 
   // No connection: a local page that retries.
@@ -67,6 +71,31 @@ function createWindow() {
     if (n && !win.isFocused()) win.flashFrame(true);
   });
   win.on('focus', () => win.flashFrame(false));
+}
+
+// The draggable strip at the top of the window (the system buttons sit on its right end).
+const TITLE_H = 32;
+const TITLE_CSS = `
+  html, body { box-sizing: border-box; }
+  body { padding-top: ${TITLE_H}px !important; }
+  .app { height: calc(100dvh - ${TITLE_H}px) !important; }
+  .modal, .settings, .lightbox { top: ${TITLE_H}px !important; }
+  #ethic-titlebar { position: fixed; top: 0; left: 0; right: 0; height: ${TITLE_H}px; z-index: 2147483647; background: #000;
+    -webkit-app-region: drag; user-select: none; display: flex; align-items: center; gap: 8px; padding-left: 12px;
+    font: 600 12px "Segoe UI", sans-serif; color: #9a9a9a; letter-spacing: .02em; }
+  #ethic-titlebar img { width: 16px; height: 16px; border-radius: 4px; }
+`;
+function addTitleBar() {
+  const url = win.webContents.getURL();
+  if (!url.startsWith(ORIGIN)) return;
+  win.webContents.insertCSS(TITLE_CSS);
+  win.webContents.executeJavaScript(`(() => {
+    if (document.getElementById('ethic-titlebar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'ethic-titlebar';
+    bar.innerHTML = '<img src="/favicon.png" alt=""><span>Ethic Messenger</span>';
+    document.body.prepend(bar);
+  })()`).catch(() => {});
 }
 
 function createTray() {
@@ -125,6 +154,13 @@ app.whenReady().then(() => {
   setupPermissions();
   createWindow();
   createTray();
+  // Development check: ETHIC_SHOT=<file> saves a screenshot of the window and quits.
+  if (process.env.ETHIC_SHOT) {
+    win.webContents.once('did-finish-load', () => setTimeout(async () => {
+      require('fs').writeFileSync(process.env.ETHIC_SHOT, (await win.webContents.capturePage()).toPNG());
+      quitting = true; app.quit();
+    }, 4000));
+  }
   if (!Notification.isSupported()) console.warn('notifications not supported');
 });
 
