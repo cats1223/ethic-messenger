@@ -19,6 +19,8 @@ final class Store {
     var toast: String?
     var emailEnabled = false
     var inviteRequired = false
+    /// Bumped on every support-ticket event, so open ticket screens reload.
+    var ticketsVersion = 0
 
     var activeChat: Int64?
     var foreground = true
@@ -343,6 +345,8 @@ final class Store {
             if int(ev["userId"]) != me?.id { chats[cid]?.othersRead = max(chats[cid]?.othersRead ?? 0, int(ev["messageId"])) }
         case "chat":
             if let c = try? API.decode(Chat.self, ev["chat"]) { upsert(c) }
+        case "ticket", "tickets:count":
+            ticketsVersion += 1
         case "notice":
             if let t = ev["text"] as? String { show(t) }
         case "chat:removed":

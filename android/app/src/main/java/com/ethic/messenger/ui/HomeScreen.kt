@@ -101,6 +101,7 @@ sealed interface Route {
     data class Picker(val mode: PickMode, val chatId: Long = 0) : Route
     data class ImageR(val url: String) : Route
     data object Admin : Route
+    data class Support(val staff: Boolean) : Route
 }
 
 object Nav {
@@ -374,6 +375,12 @@ private fun SettingsTab() {
                     SettingsRow(Icons.Default.AdminPanelSettings, "Админ-панель") { Nav.push(Route.Admin) }
                     HorizontalDivider(color = Line)
                 }
+                if (u.support || u.isStaff) {
+                    SettingsRow(Icons.Default.Email, "Обращения пользователей") { Nav.push(Route.Support(true)) }
+                    HorizontalDivider(color = Line)
+                }
+                SettingsRow(Icons.Default.NotificationsActive, "Поддержка", "Написать нам о проблеме или идее") { Nav.push(Route.Support(false)) }
+                HorizontalDivider(color = Line)
                 SettingsRow(Icons.AutoMirrored.Filled.OpenInNew, "Открыть сайт", "Демонстрация экрана — на компьютере") { openUrl(ctx, Api.BASE) }
                 HorizontalDivider(color = Line)
                 SettingsRow(Icons.AutoMirrored.Filled.Logout, "Выйти", tint = Red, trailing = {}) { confirmLogout = true }

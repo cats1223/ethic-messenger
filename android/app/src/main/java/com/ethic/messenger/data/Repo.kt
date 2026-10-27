@@ -46,6 +46,8 @@ object Repo {
     val typing = MutableStateFlow<Map<Long, Map<Long, Long>>>(emptyMap())
     val connected = MutableStateFlow(false)
     val loggedOut = MutableStateFlow(false)
+    /** Bumped on every support-ticket event, so open ticket screens reload. */
+    val ticketsVersion = MutableStateFlow(0)
     val events = MutableSharedFlow<AppEvent>(extraBufferCapacity = 32)
 
     @Volatile var activeChat: Long? = null
@@ -342,6 +344,7 @@ object Repo {
                 if (ev.long("userId") != me.value?.id) updateChat(cid) { it.copy(othersRead = maxOf(it.othersRead, ev.long("messageId"))) }
             }
             "chat" -> upsertChat(j.decodeFromJsonElement(ev["chat"]!!))
+            "ticket", "tickets:count" -> ticketsVersion.value++
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
             "chat:removed" -> {
                 val cid = ev.long("chatId")
