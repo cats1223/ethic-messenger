@@ -112,6 +112,18 @@ private fun Root(onReady: () -> Unit) {
     fun ask(vararg p: String) { need(*p).takeIf { it.isNotEmpty() }?.let { perms.launch(it.toTypedArray()) } }
     LaunchedEffect(boot) {
         if (boot == Boot.APP && Build.VERSION.SDK_INT >= 33) ask(Manifest.permission.POST_NOTIFICATIONS)
+        if (boot == Boot.APP) Updater.check()
+    }
+    val update by Updater.available.collectAsState()
+    var updateDismissed by remember { mutableStateOf(false) }
+    update?.takeIf { !updateDismissed && boot == Boot.APP }?.let { u ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { updateDismissed = true },
+            title = { androidx.compose.material3.Text("Доступно обновление ${u.version}") },
+            text = { androidx.compose.material3.Text("Сейчас у вас ${BuildConfig.VERSION_NAME}. Новая версия скачается и откроется установщик — нажмите «Установить».") },
+            confirmButton = { androidx.compose.material3.TextButton({ updateDismissed = true; Updater.install(ctx); Repo.toast("Скачиваю обновление…") }) { androidx.compose.material3.Text("Обновить") } },
+            dismissButton = { androidx.compose.material3.TextButton({ updateDismissed = true }) { androidx.compose.material3.Text("Позже") } },
+        )
     }
     val askCam by CallManager.askCamera.collectAsState()
     LaunchedEffect(askCam) { if (askCam > 0) ask(Manifest.permission.CAMERA) }

@@ -79,6 +79,10 @@ struct RootView: View {
         .fullScreenCover(item: Binding(get: { nav.image.map { IdURL(url: $0) } }, set: { nav.image = $0?.url })) { ImageViewer(url: $0.url) }
         .sheet(isPresented: $nav.callPicker) { NavigationStack { PickerView(mode: .addToCall, chatId: calls.ui?.chatId ?? 0) } }
         .task { await store.boot() }
+        .alert("Доступна версия \(store.update ?? "")", isPresented: Binding(get: { store.update != nil }, set: { if !$0 { store.update = nil } })) {
+            Button("Открыть страницу") { if let u = URL(string: "https://github.com/cats1223/ethic-messenger/releases/latest") { UIApplication.shared.open(u) } }
+            Button("Позже", role: .cancel) {}
+        } message: { Text("Скачайте новый Ethic-Messenger.ipa и установите его через Sideloadly или AltStore поверх текущей версии.") }
     }
 }
 

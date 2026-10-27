@@ -95,6 +95,7 @@ fun AdminScreen() {
     var roleFor by remember { mutableStateOf<AdminUser?>(null) }
     var badgeFor by remember { mutableStateOf<AdminUser?>(null) }
     var banFor by remember { mutableStateOf<AdminUser?>(null) }
+    var deleteFor by remember { mutableStateOf<AdminUser?>(null) }
 
     suspend fun reload() {
         runCatching {
@@ -183,6 +184,7 @@ fun AdminScreen() {
                     if (u.banned) act("/api/admin/users/${u.id}/ban", mapOf("banned" to false)) else banFor = u
                     selected = null
                 }
+                if (owner && u.role != "owner" && !u.username.startsWith("deleted_")) SheetItem(Icons.Default.Block, "Удалить аккаунт", Red) { deleteFor = u; selected = null }
             }
         }
     }
@@ -218,6 +220,15 @@ fun AdminScreen() {
             },
             confirmButton = { TextButton({ act("/api/admin/users/${u.id}/badge", mapOf("badge" to text.trim()), "Сохранено"); badgeFor = null }) { Text("Сохранить") } },
             dismissButton = { TextButton({ badgeFor = null }) { Text("Отмена") } },
+        )
+    }
+    deleteFor?.let { u ->
+        AlertDialog(
+            onDismissRequest = { deleteFor = null },
+            title = { Text("Удалить аккаунт ${u.displayName}?") },
+            text = { Text("Логин, фото, почта и вход будут удалены навсегда, отменить нельзя. В чужих чатах он останется как «Удалённый аккаунт».") },
+            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/delete", emptyMap(), "Аккаунт удалён"); deleteFor = null }) { Text("Удалить навсегда", color = Red) } },
+            dismissButton = { TextButton({ deleteFor = null }) { Text("Отмена") } },
         )
     }
     banFor?.let { u ->

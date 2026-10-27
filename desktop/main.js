@@ -1,6 +1,9 @@
 // Ethic Messenger for Windows: the web app in its own window, like Discord's desktop client.
 // Adds a tray icon, native notifications, mic/camera access and a screen picker for screen sharing.
-const { app, BrowserWindow, Tray, Menu, shell, session, desktopCapturer, ipcMain, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, session, desktopCapturer, ipcMain, nativeImage, Notification, dialog, net } = require('electron');
+const fs = require('fs');
+const os = require('os');
+const { spawn } = require('child_process');
 const path = require('path');
 
 const SITE = 'https://176-124-220-95.sslip.io:8443';
@@ -154,6 +157,7 @@ app.whenReady().then(() => {
   setupPermissions();
   createWindow();
   createTray();
+  if (app.isPackaged) { setTimeout(checkUpdate, 8000); setInterval(checkUpdate, 6 * 3600_000); }
   // Development check: ETHIC_SHOT=<file> saves a screenshot of the window and quits.
   if (process.env.ETHIC_SHOT) {
     win.webContents.once('did-finish-load', () => setTimeout(async () => {
@@ -163,6 +167,35 @@ app.whenReady().then(() => {
   }
   if (!Notification.isSupported()) console.warn('notifications not supported');
 });
+
+// ---------- updates: a newer installer on GitHub releases is offered and installed in place ----------
+const LATEST = 'https://api.github.com/repos/cats1223/ethic-messenger/releases/latest';
+const newer = (a, b) => {
+  const x = a.replace(/^v/, '').split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d > 0; }
+  return false;
+};
+let offered = null;
+async function checkUpdate() {
+  try {
+    const r = await (await net.fetch(LATEST, { headers: { Accept: 'application/vnd.github+json' } })).json();
+    const exe = r.assets?.find((a) => a.name.endsWith('.exe'));
+    if (!exe || !newer(r.tag_name, app.getVersion()) || offered === r.tag_name) return;
+    offered = r.tag_name;
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info', buttons: ['Обновить', 'Позже'], defaultId: 0, cancelId: 1,
+      title: 'Ethic Messenger', message: `Доступна версия ${r.tag_name.replace(/^v/, '')}`,
+      detail: `Сейчас у вас ${app.getVersion()}. Обновление скачается и установится само, приложение перезапустится.`,
+    });
+    if (response !== 0) return;
+    const file = path.join(os.tmpdir(), 'Ethic-Messenger-Setup.exe');
+    const res = await net.fetch(exe.browser_download_url);
+    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+    quitting = true;
+    app.quit();
+  } catch (err) { console.warn('update check failed', err.message); }
+}
 
 app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => {});

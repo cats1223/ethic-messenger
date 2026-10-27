@@ -21,6 +21,8 @@ final class Store {
     var inviteRequired = false
     /// Bumped on every support-ticket event, so open ticket screens reload.
     var ticketsVersion = 0
+    /// A newer release on GitHub (iOS apps here are sideloaded, so we only point to it).
+    var update: String?
 
     var activeChat: Int64?
     var foreground = true
@@ -59,6 +61,7 @@ final class Store {
             return
         }
         await loadConfig()
+        Task { await checkUpdate() }
         if API.token != nil {
             do {
                 let res = try await API.call("/api/me")
@@ -97,6 +100,15 @@ final class Store {
                 Tile(id: "1", userId: 1, name: "Вы", local: true, screen: false, speaking: false, micOn: false, video: nil),
             ], micOn: false, status: "2 участн.")
         }
+    }
+
+    func checkUpdate() async {
+        guard let url = URL(string: "https://api.github.com/repos/cats1223/ethic-messenger/releases/latest"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = (obj["tag_name"] as? String)?.replacingOccurrences(of: "v", with: "") else { return }
+        let cur = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        if tag.compare(cur, options: .numeric) == .orderedDescending { update = tag }
     }
 
     func loadConfig() async {

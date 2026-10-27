@@ -1,7 +1,7 @@
 {
   "name": "ethic-messenger-desktop",
   "productName": "Ethic Messenger",
-  "version": "2.2.0",
+  "version": "2.5.0",
   "description": "Ethic Messenger для Windows",
   "author": "Ethic",
   "main": "main.js",

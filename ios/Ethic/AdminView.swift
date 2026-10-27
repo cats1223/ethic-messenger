@@ -30,6 +30,7 @@ struct AdminView: View {
     @State private var badgeFor: AdminUser?
     @State private var badgeText = ""
     @State private var banFor: AdminUser?
+    @State private var deleteFor: AdminUser?
 
     private var owner: Bool { store.me?.role == "owner" }
 
@@ -77,6 +78,9 @@ struct AdminView: View {
                             if u.banned == true { Button("Разблокировать") { act("/api/admin/users/\(u.id)/ban", ["banned": false]) } }
                             else { Button("Заблокировать", role: .destructive) { banFor = u } }
                         }
+                        if owner && u.role != "owner" && !u.username.hasPrefix("deleted_") {
+                            Button("Удалить аккаунт", role: .destructive) { deleteFor = u }
+                        }
                     } label: {
                         HStack(spacing: 12) {
                             AvatarView(user: u.asUser, size: 42, showOnline: true)
@@ -102,6 +106,9 @@ struct AdminView: View {
             Button("Сохранить") { if let u = badgeFor { act("/api/admin/users/\(u.id)/badge", ["badge": String(badgeText.trimmed.prefix(24))], "Сохранено") } }
             Button("Отмена", role: .cancel) {}
         } message: { Text("Пусто — надпись роли.") }
+        .confirmationDialog("Удалить аккаунт \(deleteFor?.displayName ?? "") навсегда?", isPresented: Binding(get: { deleteFor != nil }, set: { if !$0 { deleteFor = nil } }), titleVisibility: .visible) {
+            Button("Удалить навсегда", role: .destructive) { if let u = deleteFor { act("/api/admin/users/\(u.id)/delete", [:], "Аккаунт удалён") } }
+        } message: { Text("Логин, фото, почта и вход будут удалены, отменить нельзя.") }
         .confirmationDialog("Заблокировать \(banFor?.displayName ?? "")?", isPresented: Binding(get: { banFor != nil }, set: { if !$0 { banFor = nil } }), titleVisibility: .visible) {
             Button("Заблокировать", role: .destructive) { if let u = banFor { act("/api/admin/users/\(u.id)/ban", ["banned": true], "Заблокирован") } }
         }
