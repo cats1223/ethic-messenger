@@ -149,7 +149,7 @@ struct SettingsView: View {
                 }
                 Section {
                     if u.isStaff {
-                        Button { openURL(URL(string: API.base + "/#admin")!) } label: { Label("Админ-панель", systemImage: "shield") }
+                        NavigationLink(value: Route.admin) { Label("Админ-панель", systemImage: "shield") }
                     }
                     Button { openURL(URL(string: API.base)!) } label: { Label("Открыть сайт", systemImage: "safari") }
                     Button(role: .destructive) { confirmLogout = true } label: { Label("Выйти", systemImage: "rectangle.portrait.and.arrow.right") }

@@ -23,6 +23,7 @@ enum Route: Hashable {
     case group(Int64)
     case editProfile
     case picker(PickMode, Int64)
+    case admin
 }
 
 enum PickMode: Hashable { case group, addMember, addToCall }
@@ -116,6 +117,7 @@ struct MainTabs: View {
         case .group(let id): GroupView(chatId: id)
         case .editProfile: EditProfileView()
         case .picker(let mode, let id): PickerView(mode: mode, chatId: id)
+        case .admin: AdminView()
         }
     }
 }
