@@ -41,6 +41,7 @@ struct ChatRow: View {
     @State private var store = Store.shared
 
     private var lastLine: String {
+        if let r = chat.request { return r.from == store.me?.id ? "Заявка отправлена" : "Хочет написать вам" }
         guard let last = chat.lastMessage else { return previewText(nil) }
         var prefix = ""
         if last.userId == store.me?.id { prefix = "Вы: " } else if chat.isGroup { prefix = store.userName(last.userId) + ": " }

@@ -159,6 +159,14 @@ final class Store {
         upsert(try API.decode(Chat.self, res["chat"]))
     }
 
+    func acceptRequest(_ chatId: Int64) async throws {
+        upsert(try API.decode(Chat.self, try await API.call("/api/chats/\(chatId)/accept", method: "POST")["chat"]))
+    }
+    func declineRequest(_ chatId: Int64) async throws {
+        try await API.call("/api/chats/\(chatId)/decline", method: "POST")
+        chats[chatId] = nil; messages[chatId] = nil
+    }
+
     func leaveChat(_ chatId: Int64) async throws {
         try await API.call("/api/chats/\(chatId)/members/me", method: "DELETE")
         chats[chatId] = nil; messages[chatId] = nil
@@ -335,6 +343,13 @@ final class Store {
             if int(ev["userId"]) != me?.id { chats[cid]?.othersRead = max(chats[cid]?.othersRead ?? 0, int(ev["messageId"])) }
         case "chat":
             if let c = try? API.decode(Chat.self, ev["chat"]) { upsert(c) }
+        case "notice":
+            if let t = ev["text"] as? String { show(t) }
+        case "chat:removed":
+            let cid = int(ev["chatId"])
+            chats[cid] = nil; messages[cid] = nil
+            if let t = ev["text"] as? String { show(t) }
+            if Nav.shared.chatsPath.contains(.chat(cid)) { Nav.shared.chatsPath = [] }
         case "user":
             if let u = try? API.decode(User.self, ev["user"]) {
                 remember([u])

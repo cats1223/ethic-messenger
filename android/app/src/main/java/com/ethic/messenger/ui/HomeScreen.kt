@@ -240,7 +240,11 @@ private fun ChatsTab() {
                                     else -> ""
                                 }
                                 Text(
-                                    if (typers.isNotEmpty()) "печатает…" else prefix + previewText(last),
+                                    when {
+                                        chat.request != null -> if (chat.request.from == Repo.me.value?.id) "Заявка отправлена" else "Хочет написать вам"
+                                        typers.isNotEmpty() -> "печатает…"
+                                        else -> prefix + previewText(last)
+                                    },
                                     color = if (typers.isNotEmpty()) Blue else Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     fontSize = 14.sp, modifier = Modifier.weight(1f),
                                 )

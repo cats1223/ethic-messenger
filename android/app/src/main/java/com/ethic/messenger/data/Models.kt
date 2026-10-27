@@ -78,10 +78,14 @@ data class Chat(
     val unread: Int = 0,
     val othersRead: Long = 0,
     val call: CallInfo? = null,
+    val request: RequestRef? = null,
 ) {
     val isGroup get() = type == "group"
     val sortKey get() = lastMessage?.createdAt ?: createdAt
 }
+
+@Serializable
+data class RequestRef(val from: Long)
 
 data class ChatMessages(val list: List<Message> = emptyList(), val hasMore: Boolean = false, val loaded: Boolean = false)
 

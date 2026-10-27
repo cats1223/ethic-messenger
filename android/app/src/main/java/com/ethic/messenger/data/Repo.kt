@@ -161,6 +161,12 @@ object Repo {
         upsertChat(Api.json.decodeFromJsonElement(res["chat"]!!))
     }
 
+    suspend fun acceptRequest(chatId: Long) = upsertChat(Api.json.decodeFromJsonElement(Api.call("/api/chats/$chatId/accept", "POST")["chat"]!!))
+    suspend fun declineRequest(chatId: Long) {
+        Api.call("/api/chats/$chatId/decline", "POST")
+        chats.update { it - chatId }; messages.update { it - chatId }
+    }
+
     suspend fun leaveChat(chatId: Long) {
         Api.call("/api/chats/$chatId/members/me", "DELETE")
         chats.update { it - chatId }
@@ -336,6 +342,12 @@ object Repo {
                 if (ev.long("userId") != me.value?.id) updateChat(cid) { it.copy(othersRead = maxOf(it.othersRead, ev.long("messageId"))) }
             }
             "chat" -> upsertChat(j.decodeFromJsonElement(ev["chat"]!!))
+            "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
+            "chat:removed" -> {
+                val cid = ev.long("chatId")
+                chats.update { it - cid }; messages.update { it - cid }
+                ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
+            }
             "user" -> {
                 val u: User = j.decodeFromJsonElement(ev["user"]!!)
                 remember(listOf(u))

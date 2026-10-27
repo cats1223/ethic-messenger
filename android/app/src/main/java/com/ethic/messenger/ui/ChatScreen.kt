@@ -188,6 +188,19 @@ fun ChatScreen(chatId: Long) {
             )
         },
         bottomBar = {
+            chat.request?.let { req ->
+                val mine = req.from == me?.id
+                Column(Modifier.background(Surface1).navigationBarsPadding().padding(16.dp)) {
+                    Text(if (mine) "Заявка отправлена" else "${Repo.chatName(chat)} хочет написать вам", fontWeight = FontWeight.Bold)
+                    Text(if (mine) "Писать и звонить можно, когда собеседник её примет." else "Примите заявку, чтобы переписываться и созваниваться.", color = Muted, fontSize = 13.sp)
+                    if (!mine) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TextButton({ scope.launch { runCatching { Repo.declineRequest(chatId) }.onFailure { Repo.toast(it.message ?: "") } } }) { Text("Отклонить", color = Red) }
+                        androidx.compose.material3.Button({ scope.launch { runCatching { Repo.acceptRequest(chatId) }.onFailure { Repo.toast(it.message ?: "") } } },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) { Text("Принять") }
+                    }
+                }
+                return@Scaffold
+            }
             Composer(
                 chat, reply, editing,
                 onCancel = { reply = null; editing = null },

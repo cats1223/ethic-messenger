@@ -117,7 +117,9 @@ struct ChatView: View {
             .onChange(of: list.last?.key) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
         }
         .safeAreaInset(edge: .top) { callStrip(chat) }
-        .safeAreaInset(edge: .bottom) { composer }
+        .safeAreaInset(edge: .bottom) {
+            if let chat, let req = chat.request { requestBar(chat, mine: req.from == store.me?.id) } else { composer }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { if let chat { header(chat) } }
@@ -180,6 +182,26 @@ struct ChatView: View {
         if (m.userId == store.me?.id || store.me?.isStaff == true), !m.isPending {
             Button(role: .destructive) { store.delete(m) } label: { Label("Удалить", systemImage: "trash") }
         }
+    }
+
+    private func requestBar(_ chat: Chat, mine: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(mine ? "Заявка отправлена" : "\(store.chatName(chat)) хочет написать вам").font(.headline)
+            Text(mine ? "Писать и звонить можно, когда собеседник её примет." : "Примите заявку, чтобы переписываться и созваниваться.")
+                .font(.footnote).foregroundStyle(muted)
+            if !mine {
+                HStack {
+                    Button("Отклонить", role: .destructive) { Task { do { try await store.declineRequest(chatId) } catch { store.show(error.localizedDescription) } } }
+                    Spacer()
+                    Button { Task { do { try await store.acceptRequest(chatId) } catch { store.show(error.localizedDescription) } } } label: {
+                        Text("Принять").bold().padding(.horizontal, 22).padding(.vertical, 10).background(.white, in: Capsule()).foregroundStyle(.black)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16).glass(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 10).padding(.bottom, 6)
     }
 
     private var composer: some View {
