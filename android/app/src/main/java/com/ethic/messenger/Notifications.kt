@@ -78,5 +78,19 @@ object Notifications {
         runCatching { NotificationManagerCompat.from(app).notify(chat.id.toInt(), n) }
     }
 
+    /** A message that arrived by push (the app was closed). */
+    fun pushMessage(chatId: Long, title: String, body: String) {
+        if (!allowed()) return
+        val n = NotificationCompat.Builder(app, CH_MESSAGES)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setContentIntent(openIntent { putExtra("chatId", chatId) })
+            .build()
+        runCatching { NotificationManagerCompat.from(app).notify(chatId.toInt(), n) }
+    }
+
     fun cancelChat(chatId: Long) = NotificationManagerCompat.from(app).cancel(chatId.toInt())
 }

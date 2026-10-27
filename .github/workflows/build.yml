@@ -29,6 +29,10 @@ jobs:
           VER="${{ inputs.version }}"; [ -z "$VER" ] && VER="${GITHUB_REF_NAME#v}"
           echo "VERSION_NAME=$VER" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$(( 100 + ${{ github.run_number }} ))" >> "$GITHUB_ENV"
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
       - name: Build
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon

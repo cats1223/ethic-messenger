@@ -84,6 +84,9 @@ object CallManager {
     }
 
     // ---------- incoming ----------
+    /** From a push while the app was closed: same as a ring over the socket. */
+    fun ringFromPush(ev: RingEvent) = Repo.scope.launch { onRing(ev) }
+
     private fun onRing(ev: RingEvent) {
         if (state.value != null || incoming.value != null) return
         Repo.remember(listOf(ev.from))

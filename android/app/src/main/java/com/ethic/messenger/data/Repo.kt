@@ -114,13 +114,17 @@ object Repo {
         me.value = user
         remember(listOf(user))
         connectWs()
+        com.ethic.messenger.Push.register()
         // Not tied to the caller: the login screen (and its coroutines) goes away right after this.
         scope.launch { runCatching { loadChats() }.onFailure { toast(it.message ?: "Не удалось загрузить чаты") } }
     }
 
     fun logout() {
         val t = Api.token
-        scope.launch { if (t != null) runCatching { Api.call("/api/logout", "POST") } ; clearSession() }
+        scope.launch {
+            if (t != null) { com.ethic.messenger.Push.unregister(); runCatching { Api.call("/api/logout", "POST") } }
+            clearSession()
+        }
     }
 
     fun onUnauthorized() { scope.launch { clearSession() } }
