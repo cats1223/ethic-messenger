@@ -100,6 +100,7 @@ sealed interface Route {
     data object EditProfile : Route
     data class Picker(val mode: PickMode, val chatId: Long = 0) : Route
     data class ImageR(val url: String) : Route
+    data object Admin : Route
 }
 
 object Nav {
@@ -366,7 +367,7 @@ private fun SettingsTab() {
             }
             Section {
                 if (u.isStaff) {
-                    SettingsRow(Icons.Default.AdminPanelSettings, "Админ-панель", "Откроется на сайте") { openUrl(ctx, Api.BASE + "/#admin") }
+                    SettingsRow(Icons.Default.AdminPanelSettings, "Админ-панель") { Nav.push(Route.Admin) }
                     HorizontalDivider(color = Line)
                 }
                 SettingsRow(Icons.AutoMirrored.Filled.OpenInNew, "Открыть сайт", "Демонстрация экрана — на компьютере") { openUrl(ctx, Api.BASE) }

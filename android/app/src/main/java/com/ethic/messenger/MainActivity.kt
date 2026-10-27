@@ -178,5 +178,6 @@ private fun Screen(r: Route) {
         Route.EditProfile -> EditProfileScreen()
         is Route.Picker -> PickerScreen(r.mode, r.chatId)
         is Route.ImageR -> ImageScreen(r.url)
+        Route.Admin -> com.ethic.messenger.ui.AdminScreen()
     }
 }
