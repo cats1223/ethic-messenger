@@ -100,12 +100,12 @@ private fun ProfileHeader(u: User) {
     }
     Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
         NameLine(u.displayName, u, fontSize = 24, weight = FontWeight.ExtraBold)
-        Text("@${u.username}", color = Muted)
-        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("@${u.username}", color = Muted)
             BadgeLabel(u)
-            Text(lastSeenText(u), color = if (u.online) Green else Muted, fontSize = 14.sp)
         }
+        Spacer(Modifier.height(6.dp))
+        Text(lastSeenText(u), color = if (u.online) Green else Muted, fontSize = 14.sp)
     }
 }
 

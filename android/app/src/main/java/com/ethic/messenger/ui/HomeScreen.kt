@@ -347,9 +347,10 @@ private fun SettingsTab() {
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 NameLine(u.displayName, u, fontSize = 20, weight = FontWeight.Bold)
-                                Text("@${u.username}", color = Muted)
-                                Spacer(Modifier.height(4.dp))
-                                BadgeLabel(u)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("@${u.username}", color = Muted)
+                                    BadgeLabel(u)
+                                }
                             }
                             Icon(Icons.Default.Edit, null, tint = Muted)
                         }

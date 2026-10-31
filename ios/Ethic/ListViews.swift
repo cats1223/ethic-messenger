@@ -123,8 +123,10 @@ struct SettingsView: View {
                             AvatarView(user: u, size: 64)
                             VStack(alignment: .leading, spacing: 3) {
                                 NameLine(name: u.displayName, user: u, font: .title3.weight(.bold))
-                                Text("@\(u.username)").foregroundStyle(muted)
-                                BadgeLabel(user: u)
+                                HStack(spacing: 6) {
+                                    Text("@\(u.username)").foregroundStyle(muted)
+                                    BadgeLabel(user: u)
+                                }
                             }
                         }
                         .padding(.vertical, 6)
@@ -231,11 +233,11 @@ private struct ProfileHeader: View {
             .padding(.bottom, 56)
             VStack(alignment: .leading, spacing: 4) {
                 NameLine(name: user.displayName, user: user, font: .title.weight(.heavy))
-                Text("@\(user.username)").foregroundStyle(muted)
-                HStack {
+                HStack(spacing: 6) {
+                    Text("@\(user.username)").foregroundStyle(muted)
                     BadgeLabel(user: user)
-                    Text(lastSeenText(user)).font(.subheadline).foregroundStyle(user.isOnline ? green : muted)
                 }
+                Text(lastSeenText(user)).font(.subheadline).foregroundStyle(user.isOnline ? green : muted)
             }
             .padding(.horizontal, 20)
         }

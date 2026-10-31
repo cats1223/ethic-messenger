@@ -89,10 +89,13 @@ struct AdminView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     NameLine(name: u.displayName, user: u.asUser)
-                                    BadgeLabel(user: u.asUser)
                                     if u.banned == true { Text("заблокирован").font(.caption).foregroundStyle(red) }
                                 }
-                                Text("ID \(u.id) · @\(u.username) · \(u.messages ?? 0) сообщ.").font(.caption).foregroundStyle(muted)
+                                HStack(spacing: 6) {
+                                    Text("ID \(u.id) · @\(u.username)").font(.caption).foregroundStyle(muted)
+                                    BadgeLabel(user: u.asUser)
+                                    Text("\(u.messages ?? 0) сообщ.").font(.caption).foregroundStyle(muted)
+                                }
                             }
                         }
                         .foregroundStyle(.white)

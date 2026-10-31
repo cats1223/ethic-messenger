@@ -162,10 +162,13 @@ fun AdminScreen() {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             NameLine(u.displayName, u.asUser, Modifier.weight(1f, fill = false))
-                            Spacer(Modifier.width(6.dp)); BadgeLabel(u.asUser)
                             if (u.banned) Text("  заблокирован", color = Red, fontSize = 12.sp)
                         }
-                        Text("ID ${u.id} · @${u.username} · ${u.messages} сообщ.", color = Muted, fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("ID ${u.id} · @${u.username}", color = Muted, fontSize = 12.sp)
+                            BadgeLabel(u.asUser)
+                            Text("${u.messages} сообщ.", color = Muted, fontSize = 12.sp)
+                        }
                     }
                 }
             }
