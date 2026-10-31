@@ -35,17 +35,10 @@ struct SupportView: View {
     let staff: Bool
     @State private var store = Store.shared
     @State private var list: [Ticket] = []
-    @State private var filter: String
     @State private var creating = false
-
-    init(staff: Bool) { self.staff = staff; _filter = State(initialValue: staff ? "open" : "") }
 
     var body: some View {
         List {
-            if staff {
-                Picker("Фильтр", selection: $filter) { Text("Открытые").tag("open"); Text("Закрытые").tag("closed"); Text("Все").tag("") }
-                    .pickerStyle(.segmented).listRowBackground(Color.clear)
-            }
             if list.isEmpty {
                 Text(staff ? "Обращений нет" : "У вас пока нет обращений. Опишите проблему — мы ответим здесь же.").foregroundStyle(muted)
             }
@@ -66,13 +59,11 @@ struct SupportView: View {
         .navigationTitle(staff ? "Обращения" : "Поддержка")
         .toolbar { if !staff { Button { creating = true } label: { Image(systemName: "plus") } } }
         .sheet(isPresented: $creating) { NewTicketView { creating = false } }
-        .task(id: "\(filter)-\(store.ticketsVersion)-\(creating)") { await load() }
+        .task(id: "\(store.ticketsVersion)-\(creating)") { await load() }
     }
 
     private func load() async {
-        var q = staff ? "all=1&" : ""
-        if !filter.isEmpty { q += "status=\(filter)" }
-        do { list = try API.decode([Ticket].self, try await API.call("/api/tickets?\(q)")["tickets"]) } catch { store.show(error.localizedDescription) }
+        do { list = try API.decode([Ticket].self, try await API.call("/api/tickets" + (staff ? "?all=1" : ""))["tickets"]) } catch { store.show(error.localizedDescription) }
     }
 }
 
@@ -116,6 +107,7 @@ private struct TicketThreadView: View {
     @State private var ticket: Ticket?
     @State private var msgs: [TicketMsg] = []
     @State private var reply = ""
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -142,7 +134,7 @@ private struct TicketThreadView: View {
         }
         .safeAreaInset(edge: .bottom) {
             HStack(alignment: .bottom) {
-                TextField(ticket?.status == "closed" ? "Новое сообщение откроет обращение" : "Ответ…", text: $reply, axis: .vertical)
+                TextField("Ответ…", text: $reply, axis: .vertical)
                     .lineLimit(1...5).padding(.horizontal, 14).padding(.vertical, 11).glass(RoundedRectangle(cornerRadius: 22))
                 Button { send() } label: { Image(systemName: "arrow.up").font(.headline).foregroundStyle(.black).frame(width: 44, height: 44).background(.white, in: Circle()) }
             }
@@ -150,16 +142,17 @@ private struct TicketThreadView: View {
         }
         .navigationTitle(ticket?.title ?? "Обращение #\(id)").navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let t = ticket {
-                Button(t.status == "closed" ? "Открыть" : "Закрыть") {
+            if ticket != nil {
+                Button("Закрыть") {
                     Task {
-                        do { try await API.call("/api/tickets/\(id)/status", method: "POST", body: ["status": t.status == "closed" ? "open" : "closed"]); await load() }
+                        do { try await API.call("/api/tickets/\(id)/status", method: "POST", body: ["status": "closed"]); dismiss() }
                         catch { store.show(error.localizedDescription) }
                     }
                 }
             }
         }
         .task(id: store.ticketsVersion) { await load() }
+        .onChange(of: ticket?.status) { _, status in if status == "closed" { dismiss() } }
     }
 
     private func load() async {

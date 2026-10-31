@@ -179,8 +179,8 @@ object Repo {
         messages.update { it - chatId }
     }
 
-    suspend fun searchUsers(q: String): List<User> {
-        val res = Api.call("/api/users?q=" + java.net.URLEncoder.encode(q, "UTF-8"))
+    suspend fun searchUsers(q: String, contacts: Boolean = false): List<User> {
+        val res = Api.call("/api/users?" + (if (contacts) "contacts=1&" else "") + "q=" + java.net.URLEncoder.encode(q, "UTF-8"))
         return Api.json.decodeFromJsonElement<List<User>>(res["users"]!!).also { remember(it) }
     }
 

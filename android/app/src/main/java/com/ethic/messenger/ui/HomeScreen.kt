@@ -299,7 +299,7 @@ private fun PeopleTab() {
     }
     TabScaffold("Люди") { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            item { SearchField(q, { q = it }, "Имя или логин") }
+            item { SearchField(q, { q = it }, "Введите username") }
             items(found, key = { it.id }) { u -> UserRow(users[u.id] ?: u) { Nav.push(Route.UserR(u.id)) } }
         }
     }

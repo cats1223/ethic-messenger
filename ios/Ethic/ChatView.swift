@@ -75,6 +75,7 @@ struct ChatView: View {
     @State private var reply: Message?
     @State private var editing: Message?
     @State private var photo: PhotosPickerItem?
+    @State private var photoPicker = false
     @State private var fileImporter = false
     @State private var recorder = Recorder()
     @State private var recording = false
@@ -137,6 +138,8 @@ struct ChatView: View {
         .onChange(of: list.last?.id) { _, _ in store.markRead(chatId) }
         .onDisappear { if store.activeChat == chatId { store.activeChat = nil }; VoicePlayer.shared.stop() }
         .onChange(of: photo) { _, item in sendPhoto(item) }
+        // Lives here, not inside the attach menu: the menu closes and takes a picker placed in it along.
+        .photosPicker(isPresented: $photoPicker, selection: $photo, matching: .any(of: [.images, .videos]))
         .fileImporter(isPresented: $fileImporter, allowedContentTypes: [.item]) { res in if case .success(let url) = res { sendFile(url) } }
     }
 
@@ -231,7 +234,7 @@ struct ChatView: View {
                 } else {
                     if editing == nil {
                         Menu {
-                            PhotosPicker(selection: $photo, matching: .images) { Label("Фото", systemImage: "photo") }
+                            Button { photoPicker = true } label: { Label("Фото или видео", systemImage: "photo") }
                             Button { fileImporter = true } label: { Label("Файл", systemImage: "doc") }
                         } label: { Image(systemName: "paperclip").font(.title3).frame(width: 48, height: 48) }
                         .glass(Circle())
@@ -292,6 +295,7 @@ struct ChatView: View {
         guard let item else { return }
         photo = nil
         Task {
+            if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) { await sendVideo(item); return }
             guard let data = try? await item.loadTransferable(type: Data.self), let (file, w, h) = prepareImage(data) else {
                 store.show("Не удалось открыть изображение"); return
             }
@@ -302,6 +306,19 @@ struct ChatView: View {
             }
             reply = nil
         }
+    }
+
+    private func sendVideo(_ item: PhotosPickerItem) async {
+        store.show("Подготовка видео…")
+        guard let picked = try? await item.loadTransferable(type: PickedMovie.self), let (file, size) = await prepareVideo(picked.url) else {
+            store.show("Не удалось открыть видео"); return
+        }
+        if size > 50 * 1024 * 1024 { store.show("Видео больше 50 МБ"); return }
+        let preview = Message(id: 0, chatId: chatId, userId: 0, file: FileRef(url: file.absoluteString, name: "video.mp4", size: size, kind: "video"))
+        store.sendUpload(chatId, file: file, kind: "file", name: "video.mp4", reply: reply, preview: preview) { up in
+            ["file": ["url": up.url, "name": "video.mp4", "size": up.size, "kind": "video"]]
+        }
+        reply = nil
     }
 
     private func sendFile(_ picked: URL) {
@@ -321,6 +338,32 @@ struct ChatView: View {
         }
         reply = nil
     }
+}
+
+/// A video from the photo library, copied to a temporary file.
+struct PickedMovie: Transferable {
+    let url: URL
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { SentTransferredFile($0.url) } importing: { received in
+            let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "." + received.file.pathExtension)
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return PickedMovie(url: copy)
+        }
+    }
+}
+
+/// Re-encodes to H.264 MP4 up to 720p, which plays everywhere and fits the upload limit. Returns (file, size).
+func prepareVideo(_ src: URL) async -> (URL, Int64)? {
+    defer { try? FileManager.default.removeItem(at: src) }
+    guard let session = AVAssetExportSession(asset: AVURLAsset(url: src), presetName: AVAssetExportPreset1280x720) else { return nil }
+    let out = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(UUID().uuidString).mp4")
+    session.outputURL = out
+    session.outputFileType = .mp4
+    session.shouldOptimizeForNetworkUse = true
+    await session.export()
+    guard session.status == .completed else { return nil }
+    let size = (try? FileManager.default.attributesOfItem(atPath: out.path)[.size] as? NSNumber)?.int64Value ?? 0
+    return (out, size)
 }
 
 struct Bubble: View {

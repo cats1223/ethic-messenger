@@ -13,7 +13,8 @@ let tray = null;
 let quitting = false;
 let splash = null;
 
-app.setAppUserModelId('com.ethic.messenger');
+// Only the installed app: a test run from node_modules must not take over the app's name and icon in Windows.
+if (app.isPackaged) app.setAppUserModelId('com.ethic.messenger');
 
 // One window only: a second launch focuses the running one.
 const gotLock = app.requestSingleInstanceLock();
@@ -31,16 +32,16 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 760,
+    minWidth: 780, // the site switches to its phone layout at 760
     minHeight: 520,
     backgroundColor: '#000000',
     title: 'Ethic Messenger',
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
     show: false,
-    // No standard Windows frame: minimize / maximize / close are drawn inside our black top strip, like Discord.
+    // No frame and no top strip: the app reaches the window's top edge, minimize / maximize / close sit over it.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#000000', symbolColor: '#cfcfcf', height: TITLE_H },
+    titleBarOverlay: { color: '#00000000', symbolColor: '#cfcfcf', height: TITLE_H },
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true },
   });
   win.removeMenu();
@@ -82,29 +83,17 @@ function createWindow() {
   win.on('focus', () => win.flashFrame(false));
 }
 
-// The draggable strip at the top of the window (the system buttons sit on its right end).
+// The window is dragged by the app's own headers and empty areas; the headers leave room for the system buttons.
 const TITLE_H = 32;
+const BUTTONS_W = 146;
 const TITLE_CSS = `
-  html, body { box-sizing: border-box; }
-  body { padding-top: ${TITLE_H}px !important; }
-  .app { height: calc(100dvh - ${TITLE_H}px) !important; }
-  .modal, .settings, .lightbox { top: ${TITLE_H}px !important; }
-  #ethic-titlebar { position: fixed; top: 0; left: 0; right: 0; height: ${TITLE_H}px; z-index: 2147483647; background: #000;
-    -webkit-app-region: drag; user-select: none; display: flex; align-items: center; gap: 8px; padding-left: 12px;
-    font: 600 12px "Segoe UI", sans-serif; color: #9a9a9a; letter-spacing: .02em; }
-  #ethic-titlebar img { width: 16px; height: 16px; border-radius: 4px; }
+  .auth, .topbar, .side-head, .empty-state, .call-head, .settings::before { -webkit-app-region: drag; }
+  .auth-card, button, a, input, textarea, select, label, [contenteditable] { -webkit-app-region: no-drag; }
+  .topbar, .call-head { padding-right: ${BUTTONS_W}px !important; }
+  .settings::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: ${TITLE_H}px; }
 `;
 function addTitleBar() {
-  const url = win.webContents.getURL();
-  if (!url.startsWith(ORIGIN)) return;
-  win.webContents.insertCSS(TITLE_CSS);
-  win.webContents.executeJavaScript(`(() => {
-    if (document.getElementById('ethic-titlebar')) return;
-    const bar = document.createElement('div');
-    bar.id = 'ethic-titlebar';
-    bar.innerHTML = '<img src="/favicon.png" alt=""><span>Ethic Messenger</span>';
-    document.body.prepend(bar);
-  })()`).catch(() => {});
+  if (win.webContents.getURL().startsWith(ORIGIN)) win.webContents.insertCSS(TITLE_CSS);
 }
 
 // ---------- startup window, like Discord: animated logo, update check, then the app ----------

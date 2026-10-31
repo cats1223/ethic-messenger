@@ -97,7 +97,7 @@ struct PeopleView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .searchable(text: $q, prompt: "Имя или логин")
+        .searchable(text: $q, prompt: "Введите username")
         .navigationTitle("Люди")
         .task(id: q) {
             try? await Task.sleep(nanoseconds: 250_000_000)
@@ -427,7 +427,7 @@ struct PickerView: View {
         }
         .task(id: q) {
             try? await Task.sleep(nanoseconds: 250_000_000)
-            if let list = try? await store.searchUsers(q.trimmed) { found = list }
+            if let list = try? await store.searchUsers(q.trimmed, contacts: true) { found = list }
         }
     }
 

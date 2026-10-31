@@ -186,9 +186,9 @@ final class Store {
         chats[chatId] = nil; messages[chatId] = nil
     }
 
-    func searchUsers(_ q: String) async throws -> [User] {
-        let enc = q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let list = try API.decode([User].self, try await API.call("/api/users?q=\(enc)")["users"])
+    func searchUsers(_ q: String, contacts: Bool = false) async throws -> [User] {
+        let enc = q.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+        let list = try API.decode([User].self, try await API.call("/api/users?\(contacts ? "contacts=1&" : "")q=\(enc)")["users"])
         remember(list); return list
     }
 

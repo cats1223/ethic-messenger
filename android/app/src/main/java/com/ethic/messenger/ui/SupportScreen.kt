@@ -27,7 +27,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -90,14 +89,12 @@ fun SupportScreen(staff: Boolean) {
     val version by Repo.ticketsVersion.collectAsState()
     var open by remember { mutableStateOf<Long?>(null) }
     var creating by remember { mutableStateOf(false) }
-    var filter by remember { mutableStateOf(if (staff) "open" else "") }
     val list = remember { mutableStateListOf<Ticket>() }
 
-    LaunchedEffect(filter, version, open, creating) {
+    LaunchedEffect(version, open, creating) {
         if (open != null || creating) return@LaunchedEffect
         runCatching {
-            val q = (if (staff) "all=1&" else "") + (if (filter.isNotEmpty()) "status=$filter" else "")
-            val r = Api.call("/api/tickets?$q")
+            val r = Api.call("/api/tickets" + if (staff) "?all=1" else "")
             list.clear(); list.addAll(Api.json.decodeFromJsonElement(ListSerializer(Ticket.serializer()), r["tickets"]!!))
         }.onFailure { Repo.toast(it.message ?: "") }
     }
@@ -115,13 +112,6 @@ fun SupportScreen(staff: Boolean) {
         )
     }) { pad ->
         LazyColumn(Modifier.padding(pad).fillMaxSize()) {
-            if (staff) item {
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("open" to "Открытые", "closed" to "Закрытые", "" to "Все").forEach { (v, l) ->
-                        FilterChip(filter == v, { filter = v }, { Text(l) })
-                    }
-                }
-            }
             if (list.isEmpty()) item {
                 Column(Modifier.padding(24.dp)) {
                     Text(if (staff) "Обращений нет" else "У вас пока нет обращений. Опишите проблему — мы ответим здесь же.", color = Muted)
@@ -193,6 +183,7 @@ private fun TicketThread(id: Long, onBack: () -> Unit) {
         runCatching {
             val r = Api.call("/api/tickets/$id")
             ticket = Api.json.decodeFromJsonElement(Ticket.serializer(), r["ticket"]!!)
+            if (ticket?.status == "closed") { onBack(); return@LaunchedEffect }
             msgs.clear(); msgs.addAll(Api.json.decodeFromJsonElement(ListSerializer(TicketMsg.serializer()), r["messages"]!!))
             if (msgs.isNotEmpty()) listState.scrollToItem(msgs.size - 1)
         }.onFailure { Repo.toast(it.message ?: ""); onBack() }
@@ -206,17 +197,17 @@ private fun TicketThread(id: Long, onBack: () -> Unit) {
             actions = {
                 if (t != null) TextButton({
                     scope.launch {
-                        runCatching { Api.call("/api/tickets/$id/status", "POST", mapOf("status" to if (t.status == "closed") "open" else "closed")) }
-                            .onSuccess { Repo.ticketsVersion.value++ }.onFailure { Repo.toast(it.message ?: "") }
+                        runCatching { Api.call("/api/tickets/$id/status", "POST", mapOf("status" to "closed")) }
+                            .onSuccess { Repo.ticketsVersion.value++; onBack() }.onFailure { Repo.toast(it.message ?: "") }
                     }
-                }) { Text(if (t.status == "closed") "Открыть" else "Закрыть") }
+                }) { Text("Закрыть") }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
         )
     }, bottomBar = {
         Row(Modifier.background(Surface1).navigationBarsPadding().imePadding().padding(8.dp), verticalAlignment = Alignment.Bottom) {
             OutlinedTextField(reply, { reply = it.take(4000) }, Modifier.weight(1f).heightIn(max = 160.dp),
-                placeholder = { Text(if (t?.status == "closed") "Новое сообщение откроет обращение" else "Ответ…") }, shape = RoundedCornerShape(20.dp))
+                placeholder = { Text("Ответ…") }, shape = RoundedCornerShape(20.dp))
             IconButton({
                 val text = reply.trim()
                 if (text.isEmpty()) return@IconButton

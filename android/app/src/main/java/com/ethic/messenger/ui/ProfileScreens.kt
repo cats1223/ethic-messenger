@@ -251,7 +251,7 @@ fun PickerScreen(mode: PickMode, chatId: Long) {
     }
     LaunchedEffect(q) {
         kotlinx.coroutines.delay(250)
-        runCatching { Repo.searchUsers(q.trim()) }.onSuccess { found.clear(); found.addAll(it.filter { u -> u.id !in exclude }) }
+        runCatching { Repo.searchUsers(q.trim(), contacts = true) }.onSuccess { found.clear(); found.addAll(it.filter { u -> u.id !in exclude }) }
     }
     val heading = when (mode) { PickMode.GROUP -> "Новая группа"; PickMode.ADD_MEMBER -> "Добавить участника"; PickMode.ADD_TO_CALL -> "Добавить в звонок" }
     Scaffold(containerColor = Bg, topBar = {
