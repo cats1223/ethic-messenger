@@ -101,6 +101,7 @@ sealed interface Route {
     data class Picker(val mode: PickMode, val chatId: Long = 0) : Route
     data class ImageR(val url: String) : Route
     data object Admin : Route
+    data object Plus : Route
     data class Support(val staff: Boolean) : Route
 }
 
@@ -377,6 +378,10 @@ private fun SettingsTab() {
                 }
                 if (u.support || u.isStaff) {
                     SettingsRow(Icons.Default.Email, "Обращения пользователей") { Nav.push(Route.Support(true)) }
+                    HorizontalDivider(color = Line)
+                }
+                if (u.plus || u.role == "owner") {
+                    SettingsRow(Icons.Default.GraphicEq, "Подписка Ethic+", "Цвет ника, видео-баннер") { Nav.push(Route.Plus) }
                     HorizontalDivider(color = Line)
                 }
                 SettingsRow(Icons.Default.NotificationsActive, "Поддержка", "Написать нам о проблеме или идее") { Nav.push(Route.Support(false)) }

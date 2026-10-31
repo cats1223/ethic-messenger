@@ -13,8 +13,10 @@ struct AdminUser: Codable, Identifiable {
     var grantedCheck: Bool?
     var customBadge: String?
     var messages: Int?
+    var plus: Bool?
+    var nameStyle: String?
 
-    var asUser: User { User(id: id, username: username, displayName: displayName, avatar: avatar, role: role, verified: verified, badge: badge, online: online) }
+    var asUser: User { User(id: id, username: username, displayName: displayName, avatar: avatar, role: role, verified: verified, badge: badge, online: online, plus: plus, nameStyle: nameStyle) }
 }
 
 private let roles: [(String, String)] = [("user", "Без роли"), ("tester", "Тестер"), ("support", "Поддержка"), ("dev", "Разработчик")]

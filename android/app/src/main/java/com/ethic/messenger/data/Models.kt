@@ -18,6 +18,8 @@ data class User(
     val lastSeen: Long? = null,
     val email: String? = null,
     val support: Boolean = false,
+    val plus: Boolean = false,
+    val nameStyle: String? = null,
 ) {
     val isStaff get() = role == "owner" || role == "dev"
 }

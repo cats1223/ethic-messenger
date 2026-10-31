@@ -88,8 +88,13 @@ struct NameLine: View {
     var font: Font = .body.weight(.semibold)
     var body: some View {
         HStack(spacing: 4) {
-            Text(name).font(font).lineLimit(1)
+            if user?.plus == true, let g = nameGradient(user?.nameStyle) {
+                Text(name).font(font).lineLimit(1).foregroundStyle(g)
+            } else {
+                Text(name).font(font).lineLimit(1)
+            }
             if user?.isVerified == true { Verified() }
+            if user?.plus == true { PlusBadge() }
         }
     }
 }
@@ -110,6 +115,8 @@ struct BannerView: View {
     var body: some View {
         if let b = user?.banner, let c = hexColor(b) {
             c
+        } else if isVideoBanner(user?.banner), let url = API.abs(user?.banner) {
+            VideoBanner(url: url)
         } else if let b = user?.banner, let url = API.abs(b) {
             AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { surface3 }
         } else {

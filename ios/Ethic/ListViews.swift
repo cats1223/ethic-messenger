@@ -155,6 +155,9 @@ struct SettingsView: View {
                     if u.isStaff || u.support == true {
                         NavigationLink { SupportView(staff: true) } label: { Label("Обращения пользователей", systemImage: "tray.full") }
                     }
+                    if u.plus == true || u.role == "owner" {
+                        NavigationLink { PlusView() } label: { Label("Подписка Ethic+", systemImage: "sparkles") }
+                    }
                     NavigationLink { SupportView(staff: false) } label: { Label("Поддержка", systemImage: "questionmark.bubble") }
                     Button { openURL(URL(string: API.base)!) } label: { Label("Открыть сайт", systemImage: "safari") }
                     Button(role: .destructive) { confirmLogout = true } label: { Label("Выйти", systemImage: "rectangle.portrait.and.arrow.right") }

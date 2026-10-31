@@ -1,7 +1,7 @@
 {
   "name": "ethic-messenger-desktop",
   "productName": "Ethic Messenger",
-  "version": "2.5.0",
+  "version": "2.7.0",
   "description": "Ethic Messenger для Windows",
   "author": "Ethic",
   "main": "main.js",
@@ -18,7 +18,7 @@
     "appId": "com.ethic.messenger",
     "productName": "Ethic Messenger",
     "directories": { "buildResources": "build", "output": "dist" },
-    "files": ["main.js", "preload-picker.js", "picker.html", "offline.html", "build/tray.png", "build/icon.png"],
+    "files": ["main.js", "preload-picker.js", "preload-splash.js", "picker.html", "offline.html", "splash.html", "build/tray.png", "build/icon.png", "build/logo.png"],
     "win": { "target": "nsis", "icon": "build/icon.png" },
     "nsis": {
       "oneClick": true,

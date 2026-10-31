@@ -113,8 +113,11 @@ fun Verified(size: Dp = 16.dp) {
 @Composable
 fun NameLine(name: String, user: User?, modifier: Modifier = Modifier, weight: FontWeight = FontWeight.SemiBold, fontSize: Int = 16, color: Color = Color.White) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(name, fontWeight = weight, fontSize = fontSize.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        val brush = if (user?.plus == true) nameBrush(user.nameStyle) else null
+        if (brush != null) Text(name, style = androidx.compose.ui.text.TextStyle(brush = brush, fontWeight = weight, fontSize = fontSize.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        else Text(name, fontWeight = weight, fontSize = fontSize.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         if (user?.verified == true) { androidx.compose.foundation.layout.Spacer(Modifier.size(4.dp)); Verified((fontSize - 1).dp) }
+        if (user?.plus == true) PlusBadge()
     }
 }
 
@@ -133,6 +136,7 @@ fun Banner(user: User?, modifier: Modifier) {
     val b = user?.banner
     when {
         b != null && b.startsWith("#") -> Box(modifier.background(runCatching { Color(android.graphics.Color.parseColor(b)) }.getOrDefault(Surface3)))
+        isVideoBanner(b) -> VideoBanner(b!!, modifier.background(Surface3))
         b != null -> AsyncImage(Api.abs(b), null, modifier.background(Surface3), contentScale = ContentScale.Crop)
         else -> Box(modifier.background(Brush.linearGradient(listOf(colorOf(user?.id ?: 0), Surface2))))
     }

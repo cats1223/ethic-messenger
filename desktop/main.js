@@ -11,11 +11,13 @@ const ORIGIN = new URL(SITE).origin;
 let win = null;
 let tray = null;
 let quitting = false;
+let splash = null;
 
 app.setAppUserModelId('com.ethic.messenger');
 
 // One window only: a second launch focuses the running one.
-if (!app.requestSingleInstanceLock()) app.quit();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
 app.on('second-instance', () => show());
 
 function show() {
@@ -42,7 +44,11 @@ function createWindow() {
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true },
   });
   win.removeMenu();
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    win.show();
+    if (splash && !splash.isDestroyed()) splash.close();
+    splash = null;
+  });
   win.webContents.on('dom-ready', addTitleBar);
   win.loadURL(SITE);
 
@@ -101,6 +107,57 @@ function addTitleBar() {
   })()`).catch(() => {});
 }
 
+// ---------- startup window, like Discord: animated logo, update check, then the app ----------
+function createSplash() {
+  splash = new BrowserWindow({
+    width: 300, height: 360, frame: false, resizable: false, maximizable: false, fullscreenable: false, center: true,
+    backgroundColor: '#000000', title: 'Ethic Messenger', icon: path.join(__dirname, 'build', 'icon.png'), show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload-splash.js'), contextIsolation: true, sandbox: true },
+  });
+  splash.once('ready-to-show', () => splash?.show());
+  return splash.loadFile(path.join(__dirname, 'splash.html'));
+}
+function splashStatus(text, sub, progress) {
+  if (splash && !splash.isDestroyed()) splash.webContents.send('splash:status', { text, sub, progress });
+}
+
+// Returns true when an update is being installed (the installer restarts the app itself).
+async function updateOnStart() {
+  try {
+    splashStatus('Проверка обновлений…');
+    const r = await (await net.fetch(LATEST, { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(6000) })).json();
+    const exe = r.assets?.find((a) => a.name.endsWith('.exe'));
+    if (!exe || !newer(r.tag_name, app.getVersion())) return false;
+    const version = r.tag_name.replace(/^v/, '');
+    splashStatus('Скачивание обновления…', `Версия ${version}`, 0);
+    const res = await net.fetch(exe.browser_download_url);
+    if (!res.ok) return false;
+    const total = Number(res.headers.get('content-length')) || exe.size || 0;
+    const chunks = [];
+    let got = 0;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(Buffer.from(value));
+      got += value.length;
+      if (total) splashStatus('Скачивание обновления…', `${Math.round(got / 1048576)} из ${Math.round(total / 1048576)} МБ`, got / total);
+    }
+    const file = path.join(os.tmpdir(), 'Ethic-Messenger-Setup.exe');
+    fs.writeFileSync(file, Buffer.concat(chunks));
+    splashStatus('Установка обновления…', `Версия ${version}`);
+    // Silent install in place; --force-run starts the new version when it finishes.
+    spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+    quitting = true;
+    setTimeout(() => app.quit(), 800);
+    return true;
+  } catch (err) {
+    // No internet or GitHub is down: just start the app.
+    console.warn('startup update failed', err.message);
+    return false;
+  }
+}
+
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'build', 'tray.png')));
   tray.setToolTip('Ethic Messenger');
@@ -116,7 +173,10 @@ function setupPermissions() {
   const ses = session.defaultSession;
   const allowed = new Set(['media', 'notifications', 'display-capture', 'fullscreen', 'clipboard-sanitized-write', 'speaker-selection']);
   ses.setPermissionRequestHandler((wc, permission, cb) => cb(wc.getURL().startsWith(ORIGIN) && allowed.has(permission)));
-  ses.setPermissionCheckHandler((wc, permission, origin) => origin === ORIGIN && allowed.has(permission));
+  // requestingOrigin comes with a trailing slash ("https://host:port/"), so compare parsed origins.
+  ses.setPermissionCheckHandler((wc, permission, origin) => {
+    try { return new URL(origin).origin === ORIGIN && allowed.has(permission); } catch { return false; }
+  });
 
   // Screen sharing: Windows has no system picker, so show our own.
   ses.setDisplayMediaRequestHandler(async (_req, cb) => {
@@ -153,15 +213,32 @@ function pickSource(sources) {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (!gotLock) return;
   setupPermissions();
+  await createSplash();
+  if (process.env.ETHIC_SPLASH_SHOT) {
+    await new Promise((r) => setTimeout(r, 1200));
+    splashStatus('Скачивание обновления…', '48 из 120 МБ', 0.4);
+    await new Promise((r) => setTimeout(r, 500));
+    require('fs').writeFileSync(process.env.ETHIC_SPLASH_SHOT, (await splash.webContents.capturePage()).toPNG());
+    quitting = true; app.quit();
+    return;
+  }
+  if (app.isPackaged && await updateOnStart()) return;
+  splashStatus('Запуск…');
   createWindow();
   createTray();
-  if (app.isPackaged) { setTimeout(checkUpdate, 8000); setInterval(checkUpdate, 6 * 3600_000); }
+  // While it stays open for days: offer updates with a dialog.
+  if (app.isPackaged) setInterval(checkUpdate, 6 * 3600_000);
   // Development check: ETHIC_SHOT=<file> saves a screenshot of the window and quits.
   if (process.env.ETHIC_SHOT) {
     win.webContents.once('did-finish-load', () => setTimeout(async () => {
       require('fs').writeFileSync(process.env.ETHIC_SHOT, (await win.webContents.capturePage()).toPNG());
+      console.log('devices:', await win.webContents.executeJavaScript(`navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((s) => { s.getTracks().forEach((t) => t.stop()); return navigator.mediaDevices.enumerateDevices(); })
+        .then((d) => JSON.stringify(d.filter((x) => x.kind === 'audioinput').map((x) => x.label)))
+        .catch((e) => 'ERROR ' + e.name)`));
       quitting = true; app.quit();
     }, 4000));
   }

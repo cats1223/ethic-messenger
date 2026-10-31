@@ -70,8 +70,10 @@ data class AdminUser(
     val grantedCheck: Boolean = false,
     val customBadge: String = "",
     val messages: Int = 0,
+    val plus: Boolean = false,
+    val nameStyle: String? = null,
 ) {
-    val asUser get() = User(id, username, displayName, avatar, role = role, verified = verified, badge = badge, online = online)
+    val asUser get() = User(id, username, displayName, avatar, role = role, verified = verified, badge = badge, online = online, plus = plus, nameStyle = nameStyle)
 }
 
 private val ROLES = listOf("user" to "Без роли", "tester" to "Тестер", "support" to "Поддержка", "dev" to "Разработчик")

@@ -190,6 +190,12 @@ object Repo {
         return u
     }
 
+    suspend fun fetchMe() {
+        val u: User = Api.json.decodeFromJsonElement(Api.call("/api/me")["user"]!!)
+        me.value = u
+        remember(listOf(u))
+    }
+
     suspend fun updateMe(body: Map<String, Any?>) {
         val u: User = Api.json.decodeFromJsonElement(Api.call("/api/me", "PATCH", body)["user"]!!)
         me.value = u

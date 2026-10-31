@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Ethic Messenger</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; user-select: none; -webkit-app-region: drag; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font: 600 13px "Segoe UI", sans-serif; }
+  .glow { position: absolute; top: 62px; width: 170px; height: 170px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.16), transparent 65%); animation: glow 1.6s ease-in-out infinite; }
+  img { position: relative; width: 120px; height: 120px; object-fit: contain; animation: float 1.6s ease-in-out infinite; mix-blend-mode: screen; }
+  #status { margin-top: 26px; height: 18px; color: #d8d8dc; }
+  #sub { margin-top: 4px; height: 14px; font-size: 11px; font-weight: 400; color: #77777d; }
+  .bar { margin-top: 12px; width: 180px; height: 4px; border-radius: 4px; background: #1d1d20; overflow: hidden; visibility: hidden; }
+  .bar.on { visibility: visible; }
+  .bar div { height: 100%; width: 0; background: #fff; border-radius: 4px; transition: width .2s; }
+  @keyframes float { 0%, 100% { transform: translateY(0) rotate(-4deg) scale(1); } 50% { transform: translateY(-7px) rotate(4deg) scale(1.05); } }
+  @keyframes glow { 0%, 100% { opacity: .5; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.08); } }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <img src="build/logo.png" alt="">
+  <div id="status">Запуск…</div>
+  <div id="sub"></div>
+  <div class="bar" id="bar"><div id="fill"></div></div>
+<script>
+  window.splash.onStatus(({ text, sub, progress }) => {
+    document.getElementById('status').textContent = text;
+    document.getElementById('sub').textContent = sub || '';
+    const on = typeof progress === 'number';
+    document.getElementById('bar').classList.toggle('on', on);
+    if (on) document.getElementById('fill').style.width = Math.round(progress * 100) + '%';
+  });
+</script>
+</body>
+</html>
