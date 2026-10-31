@@ -20,6 +20,7 @@ data class User(
     val support: Boolean = false,
     val plus: Boolean = false,
     val nameStyle: String? = null,
+    val bio: String? = null,
 ) {
     val isStaff get() = role == "owner" || role == "dev"
 }

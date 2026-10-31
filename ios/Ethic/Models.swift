@@ -15,6 +15,7 @@ struct User: Codable, Identifiable, Hashable {
     var support: Bool?
     var plus: Bool?
     var nameStyle: String?
+    var bio: String?
 
     var isStaff: Bool { role == "owner" || role == "dev" }
     var isVerified: Bool { verified ?? false }

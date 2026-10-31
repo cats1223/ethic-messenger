@@ -238,6 +238,7 @@ private struct ProfileHeader: View {
                     BadgeLabel(user: user)
                 }
                 Text(lastSeenText(user)).font(.subheadline).foregroundStyle(user.isOnline ? green : muted)
+                if let bio = user.bio { Text(bio).font(.subheadline).padding(.top, 6) }
             }
             .padding(.horizontal, 20)
         }
@@ -314,6 +315,7 @@ private let swatches = ["#5865f2", "#3ba55c", "#faa61a", "#ed4245", "#eb459e", "
 struct EditProfileView: View {
     @State private var store = Store.shared
     @State private var name = Store.shared.me?.displayName ?? ""
+    @State private var bio = Store.shared.me?.bio ?? ""
     @State private var avatarItem: PhotosPickerItem?
     @State private var bannerItem: PhotosPickerItem?
     @State private var busy = false
@@ -343,7 +345,12 @@ struct EditProfileView: View {
                         Button("Сбросить") { save(["banner": nil]) }.foregroundStyle(muted)
                     }
                     Field(title: "Отображаемое имя", text: $name)
-                    Button { save(["displayName": name.trimmed], toast: "Сохранено") } label: {
+                    TextField("О себе (до 190 символов)", text: $bio, axis: .vertical)
+                        .lineLimit(2...5)
+                        .padding(14)
+                        .background(surface2, in: RoundedRectangle(cornerRadius: 14))
+                        .onChange(of: bio) { _, v in if v.count > 190 { bio = String(v.prefix(190)) } }
+                    Button { save(["displayName": name.trimmed, "bio": bio.trimmed], toast: "Сохранено") } label: {
                         Text("Сохранить").font(.headline).frame(maxWidth: .infinity).frame(height: 50)
                             .background(.white, in: RoundedRectangle(cornerRadius: 14)).foregroundStyle(.black)
                     }

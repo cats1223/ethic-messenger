@@ -106,6 +106,7 @@ private fun ProfileHeader(u: User) {
         }
         Spacer(Modifier.height(6.dp))
         Text(lastSeenText(u), color = if (u.online) Green else Muted, fontSize = 14.sp)
+        u.bio?.let { Spacer(Modifier.height(10.dp)); Text(it, fontSize = 15.sp) }
     }
 }
 
@@ -188,6 +189,7 @@ fun EditProfileScreen() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(me?.displayName.orEmpty()) }
+    var bio by remember { mutableStateOf(me?.bio.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     fun uploadImage(uri: Uri, aspect: Float, maxW: Int, field: String) = scope.launch {
         busy = true
@@ -223,8 +225,9 @@ fun EditProfileScreen() {
             }
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(name, { name = it.take(48) }, "Отображаемое имя")
+                androidx.compose.material3.OutlinedTextField(bio, { bio = it.take(190) }, Modifier.fillMaxWidth(), label = { Text("О себе") }, minLines = 2, maxLines = 5, shape = RoundedCornerShape(14.dp))
                 Button(
-                    { scope.launch { runCatching { Repo.updateMe(mapOf("displayName" to name.trim())) }.onSuccess { Repo.toast("Сохранено") }.onFailure { Repo.toast(it.message ?: "") } } },
+                    { scope.launch { runCatching { Repo.updateMe(mapOf("displayName" to name.trim(), "bio" to bio.trim())) }.onSuccess { Repo.toast("Сохранено") }.onFailure { Repo.toast(it.message ?: "") } } },
                     Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 ) { Text("Сохранить", fontWeight = FontWeight.Bold) }
