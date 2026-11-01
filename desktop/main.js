@@ -6,7 +6,7 @@ const os = require('os');
 const { spawn } = require('child_process');
 const path = require('path');
 
-const SITE = 'https://176-124-220-95.sslip.io:8443';
+const SITE = 'https://213-108-23-40.sslip.io:8443';
 const ORIGIN = new URL(SITE).origin;
 let win = null;
 let tray = null;

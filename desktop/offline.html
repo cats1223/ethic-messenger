@@ -18,7 +18,7 @@
     <button id="retry">Повторить</button>
   </div>
 <script>
-  const url = new URLSearchParams(location.search).get('url') || 'https://176-124-220-95.sslip.io:8443';
+  const url = new URLSearchParams(location.search).get('url') || 'https://213-108-23-40.sslip.io:8443';
   const go = () => { location.href = url; };
   document.getElementById('retry').onclick = go;
   setTimeout(go, 10000);
