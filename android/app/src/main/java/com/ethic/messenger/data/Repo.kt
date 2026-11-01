@@ -15,6 +15,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
@@ -49,6 +51,8 @@ object Repo {
     /** Bumped on every support-ticket event, so open ticket screens reload. */
     val ticketsVersion = MutableStateFlow(0)
     val shopVersion = MutableStateFlow(0)
+    /** The set is complete: ask whether to build the scooter. */
+    val scooterAsk = MutableStateFlow(false)
     val events = MutableSharedFlow<AppEvent>(extraBufferCapacity = 32)
 
     @Volatile var activeChat: Long? = null
@@ -178,6 +182,17 @@ object Repo {
         Api.call("/api/chats/$chatId/members/me", "DELETE")
         chats.update { it - chatId }
         messages.update { it - chatId }
+    }
+
+    class ShopState(val coins: Int, val offer: Boolean, val canBuild: Boolean, val gifts: List<com.ethic.messenger.ui.ShopGift>)
+    suspend fun loadShopState(): ShopState {
+        val r = Api.call("/api/shop")
+        return ShopState(
+            r["coins"]!!.jsonPrimitive.int,
+            r["offer"]?.jsonPrimitive?.boolean == true,
+            r["canBuild"]?.jsonPrimitive?.boolean == true,
+            Api.json.decodeFromJsonElement(r["gifts"]!!),
+        )
     }
 
     suspend fun searchUsers(q: String, contacts: Boolean = false): List<User> {
@@ -357,6 +372,7 @@ object Repo {
             "chat" -> upsertChat(j.decodeFromJsonElement(ev["chat"]!!))
             "ticket", "tickets:count" -> ticketsVersion.value++
             "shop", "coins" -> shopVersion.value++
+            "scooter:ready" -> scooterAsk.value = true
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
             "gift" -> toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} дарит вам ${ev["name"]?.jsonPrimitive?.contentOrNull.orEmpty()} №${ev["serial"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
             "chat:removed" -> {

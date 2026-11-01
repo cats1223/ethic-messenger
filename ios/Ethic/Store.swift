@@ -22,6 +22,8 @@ final class Store {
     /// Bumped on every support-ticket event, so open ticket screens reload.
     var ticketsVersion = 0
     var shopVersion = 0
+    /// The set is complete: ask whether to build the scooter.
+    var scooterAsk = false
     /// A newer release on GitHub (iOS apps here are sideloaded, so we only point to it).
     var update: String?
 
@@ -362,6 +364,8 @@ final class Store {
             ticketsVersion += 1
         case "shop", "coins":
             shopVersion += 1
+        case "scooter:ready":
+            scooterAsk = true
         case "notice":
             if let t = ev["text"] as? String { show(t) }
         case "gift":

@@ -176,6 +176,7 @@ private fun Root(onReady: () -> Unit) {
                         }
                     }
                 }
+                com.ethic.messenger.ui.ScooterPrompt()
             }
         }
     }
