@@ -356,6 +356,7 @@ object Repo {
             "chat" -> upsertChat(j.decodeFromJsonElement(ev["chat"]!!))
             "ticket", "tickets:count" -> ticketsVersion.value++
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
+            "gift" -> toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} дарит вам ${ev["name"]?.jsonPrimitive?.contentOrNull.orEmpty()} №${ev["serial"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
             "chat:removed" -> {
                 val cid = ev.long("chatId")
                 chats.update { it - cid }; messages.update { it - cid }

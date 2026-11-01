@@ -361,6 +361,8 @@ final class Store {
             ticketsVersion += 1
         case "notice":
             if let t = ev["text"] as? String { show(t) }
+        case "gift":
+            show("\(ev["from"] as? String ?? "") дарит вам \(ev["name"] as? String ?? "") №\(int(ev["serial"]))")
         case "chat:removed":
             let cid = int(ev["chatId"])
             chats[cid] = nil; messages[cid] = nil

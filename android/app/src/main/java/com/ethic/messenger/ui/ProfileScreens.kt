@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
@@ -127,7 +128,9 @@ fun UserScreen(id: Long) {
                 ActionTile(Icons.AutoMirrored.Filled.Chat, "Написать", Modifier.weight(1f)) { open { Nav.openChat(it) } }
                 ActionTile(Icons.Default.Call, "Звонок", Modifier.weight(1f)) { open { CallManager.start(it, false) } }
                 ActionTile(Icons.Default.Videocam, "Видео", Modifier.weight(1f)) { open { CallManager.start(it, true) } }
+                ActionTile(Icons.Default.CardGiftcard, "Подарить", Modifier.weight(1f)) { Nav.push(Route.Shop(u.username)) }
             }
+            ProfileGifts(u.id)
         }
     }
 }

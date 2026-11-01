@@ -160,6 +160,7 @@ struct SettingsView: View {
                     if u.plus == true || u.role == "owner" {
                         NavigationLink { PlusView() } label: { Label("Подписка Ethic+", systemImage: "sparkles") }
                     }
+                    NavigationLink { ShopView() } label: { Label("Магазин подарков", systemImage: "gift") }
                     NavigationLink { SupportView(staff: false) } label: { Label("Поддержка", systemImage: "questionmark.bubble") }
                     Button { openURL(URL(string: API.base)!) } label: { Label("Открыть сайт", systemImage: "safari") }
                     Button(role: .destructive) { confirmLogout = true } label: { Label("Выйти", systemImage: "rectangle.portrait.and.arrow.right") }
@@ -257,9 +258,15 @@ struct UserView: View {
                         action("bubble.left.fill", "Написать") { Nav.shared.openChat($0) }
                         action("phone.fill", "Звонок") { Calls.shared.start($0, video: false) }
                         action("video.fill", "Видео") { Calls.shared.start($0, video: true) }
+                        NavigationLink { ShopView(to: u.username) } label: {
+                            VStack(spacing: 6) { Image(systemName: "gift.fill").font(.title3); Text("Подарить").font(.footnote) }
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        }
+                        .glass(RoundedRectangle(cornerRadius: 18))
                     }
                     .padding()
                 }
+                ProfileGifts(userId: u.id)
             }
         }
         .ignoresSafeArea(edges: .top)

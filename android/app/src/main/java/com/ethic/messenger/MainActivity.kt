@@ -192,6 +192,7 @@ private fun Screen(r: Route) {
         is Route.ImageR -> ImageScreen(r.url)
         Route.Admin -> com.ethic.messenger.ui.AdminScreen()
         Route.Plus -> com.ethic.messenger.ui.PlusScreen()
+        is Route.Shop -> com.ethic.messenger.ui.ShopScreen(r.to)
         is Route.Support -> com.ethic.messenger.ui.SupportScreen(r.staff)
     }
 }

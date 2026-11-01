@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
@@ -102,6 +103,7 @@ sealed interface Route {
     data class ImageR(val url: String) : Route
     data object Admin : Route
     data object Plus : Route
+    data class Shop(val to: String = "") : Route
     data class Support(val staff: Boolean) : Route
 }
 
@@ -385,6 +387,8 @@ private fun SettingsTab() {
                     SettingsRow(Icons.Default.GraphicEq, "Подписка Ethic+", "Цвет ника, видео-баннер") { Nav.push(Route.Plus) }
                     HorizontalDivider(color = Line)
                 }
+                SettingsRow(Icons.Default.CardGiftcard, "Магазин подарков", "Подарки и Ethic Coin") { Nav.push(Route.Shop()) }
+                HorizontalDivider(color = Line)
                 SettingsRow(Icons.Default.NotificationsActive, "Поддержка", "Написать нам о проблеме или идее") { Nav.push(Route.Support(false)) }
                 HorizontalDivider(color = Line)
                 SettingsRow(Icons.AutoMirrored.Filled.OpenInNew, "Открыть сайт", "Демонстрация экрана — на компьютере") { openUrl(ctx, Api.BASE) }
