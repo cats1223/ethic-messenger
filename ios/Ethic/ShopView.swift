@@ -89,7 +89,8 @@ struct ShopView: View {
             }
         }
         .navigationTitle("Магазин подарков")
-        .task { recipient = to; await load() }
+        .onAppear { if recipient.isEmpty { recipient = to } }
+        .task(id: store.shopVersion) { await load() }
         .alert(buying?.name ?? "", isPresented: Binding(get: { buying != nil }, set: { if !$0 { buying = nil } }), presenting: buying) { g in
             Button("Купить") { buy(g) }
             Button("Отмена", role: .cancel) {}

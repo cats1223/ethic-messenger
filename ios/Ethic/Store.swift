@@ -21,6 +21,7 @@ final class Store {
     var inviteRequired = false
     /// Bumped on every support-ticket event, so open ticket screens reload.
     var ticketsVersion = 0
+    var shopVersion = 0
     /// A newer release on GitHub (iOS apps here are sideloaded, so we only point to it).
     var update: String?
 
@@ -359,6 +360,8 @@ final class Store {
             if let c = try? API.decode(Chat.self, ev["chat"]) { upsert(c) }
         case "ticket", "tickets:count":
             ticketsVersion += 1
+        case "shop", "coins":
+            shopVersion += 1
         case "notice":
             if let t = ev["text"] as? String { show(t) }
         case "gift":

@@ -95,6 +95,7 @@ private fun CoinMark() {
 fun ShopScreen(to: String = "") {
     val scope = rememberCoroutineScope()
     val me by Repo.me.collectAsState()
+    val version by Repo.shopVersion.collectAsState()
     var coins by remember { mutableStateOf(0) }
     val gifts = remember { mutableStateListOf<ShopGift>() }
     var buying by remember { mutableStateOf<ShopGift?>(null) }
@@ -110,7 +111,7 @@ fun ShopScreen(to: String = "") {
             gifts.clear(); gifts.addAll(Api.json.decodeFromJsonElement(ListSerializer(ShopGift.serializer()), r["gifts"]!!))
         }.onFailure { Repo.toast(it.message ?: "") }
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(version) { load() }
 
     Scaffold(containerColor = Bg, topBar = {
         TopAppBar(

@@ -48,6 +48,7 @@ object Repo {
     val loggedOut = MutableStateFlow(false)
     /** Bumped on every support-ticket event, so open ticket screens reload. */
     val ticketsVersion = MutableStateFlow(0)
+    val shopVersion = MutableStateFlow(0)
     val events = MutableSharedFlow<AppEvent>(extraBufferCapacity = 32)
 
     @Volatile var activeChat: Long? = null
@@ -355,6 +356,7 @@ object Repo {
             }
             "chat" -> upsertChat(j.decodeFromJsonElement(ev["chat"]!!))
             "ticket", "tickets:count" -> ticketsVersion.value++
+            "shop", "coins" -> shopVersion.value++
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
             "gift" -> toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} дарит вам ${ev["name"]?.jsonPrimitive?.contentOrNull.orEmpty()} №${ev["serial"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
             "chat:removed" -> {
