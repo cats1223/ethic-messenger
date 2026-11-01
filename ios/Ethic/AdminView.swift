@@ -10,6 +10,7 @@ struct AdminUser: Codable, Identifiable {
     var badge: String?
     var online: Bool?
     var banned: Bool?
+    var banReason: String?
     var grantedCheck: Bool?
     var customBadge: String?
     var messages: Int?
@@ -33,6 +34,7 @@ struct AdminView: View {
     @State private var badgeText = ""
     @State private var banFor: AdminUser?
     @State private var deleteFor: AdminUser?
+    @State private var reason = ""
 
     private var owner: Bool { store.me?.role == "owner" }
 
@@ -91,6 +93,7 @@ struct AdminView: View {
                                     NameLine(name: u.displayName, user: u.asUser)
                                     if u.banned == true { Text("заблокирован").font(.caption).foregroundStyle(red) }
                                 }
+                                if u.banned == true, let why = u.banReason { Text("Причина: \(why)").font(.caption).foregroundStyle(muted) }
                                 HStack(spacing: 6) {
                                     Text("ID \(u.id) · @\(u.username)").font(.caption).foregroundStyle(muted)
                                     BadgeLabel(user: u.asUser)
@@ -111,12 +114,22 @@ struct AdminView: View {
             Button("Сохранить") { if let u = badgeFor { act("/api/admin/users/\(u.id)/badge", ["badge": String(badgeText.trimmed.prefix(24))], "Сохранено") } }
             Button("Отмена", role: .cancel) {}
         } message: { Text("Пусто — надпись роли.") }
-        .confirmationDialog("Удалить аккаунт \(deleteFor?.displayName ?? "") навсегда?", isPresented: Binding(get: { deleteFor != nil }, set: { if !$0 { deleteFor = nil } }), titleVisibility: .visible) {
-            Button("Удалить навсегда", role: .destructive) { if let u = deleteFor { act("/api/admin/users/\(u.id)/delete", [:], "Аккаунт удалён") } }
+        .alert("Удалить аккаунт \(deleteFor?.displayName ?? "") навсегда?", isPresented: Binding(get: { deleteFor != nil }, set: { if !$0 { deleteFor = nil } })) {
+            TextField("Причина, её увидит пользователь", text: $reason)
+            Button("Удалить навсегда", role: .destructive) {
+                if let u = deleteFor { act("/api/admin/users/\(u.id)/delete", ["reason": String(reason.trimmed.prefix(200))], "Аккаунт удалён") }
+                reason = ""
+            }
+            Button("Отмена", role: .cancel) { reason = "" }
         } message: { Text("Логин, фото, почта и вход будут удалены, отменить нельзя.") }
-        .confirmationDialog("Заблокировать \(banFor?.displayName ?? "")?", isPresented: Binding(get: { banFor != nil }, set: { if !$0 { banFor = nil } }), titleVisibility: .visible) {
-            Button("Заблокировать", role: .destructive) { if let u = banFor { act("/api/admin/users/\(u.id)/ban", ["banned": true], "Заблокирован") } }
-        }
+        .alert("Заблокировать \(banFor?.displayName ?? "")?", isPresented: Binding(get: { banFor != nil }, set: { if !$0 { banFor = nil } })) {
+            TextField("Причина, её увидит пользователь", text: $reason)
+            Button("Заблокировать", role: .destructive) {
+                if let u = banFor { act("/api/admin/users/\(u.id)/ban", ["banned": true, "reason": String(reason.trimmed.prefix(200))], "Заблокирован") }
+                reason = ""
+            }
+            Button("Отмена", role: .cancel) { reason = "" }
+        } message: { Text("Он сразу выйдет из аккаунта и не сможет войти.") }
     }
 
     private func reload() async {

@@ -67,6 +67,7 @@ data class AdminUser(
     val badge: String? = null,
     val online: Boolean = false,
     val banned: Boolean = false,
+    val banReason: String? = null,
     val grantedCheck: Boolean = false,
     val customBadge: String = "",
     val messages: Int = 0,
@@ -98,6 +99,7 @@ fun AdminScreen() {
     var badgeFor by remember { mutableStateOf<AdminUser?>(null) }
     var banFor by remember { mutableStateOf<AdminUser?>(null) }
     var deleteFor by remember { mutableStateOf<AdminUser?>(null) }
+    var reason by remember { mutableStateOf("") }
 
     suspend fun reload() {
         runCatching {
@@ -164,6 +166,7 @@ fun AdminScreen() {
                             NameLine(u.displayName, u.asUser, Modifier.weight(1f, fill = false))
                             if (u.banned) Text("  заблокирован", color = Red, fontSize = 12.sp)
                         }
+                        if (u.banned) u.banReason?.let { Text("Причина: $it", color = Muted, fontSize = 12.sp) }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("ID ${u.id} · @${u.username}", color = Muted, fontSize = 12.sp)
                             BadgeLabel(u.asUser)
@@ -229,20 +232,30 @@ fun AdminScreen() {
     }
     deleteFor?.let { u ->
         AlertDialog(
-            onDismissRequest = { deleteFor = null },
+            onDismissRequest = { deleteFor = null; reason = "" },
             title = { Text("Удалить аккаунт ${u.displayName}?") },
-            text = { Text("Логин, фото, почта и вход будут удалены навсегда, отменить нельзя. В чужих чатах он останется как «Удалённый аккаунт».") },
-            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/delete", emptyMap(), "Аккаунт удалён"); deleteFor = null }) { Text("Удалить навсегда", color = Red) } },
-            dismissButton = { TextButton({ deleteFor = null }) { Text("Отмена") } },
+            text = {
+                Column {
+                    Text("Логин, фото, почта и вход будут удалены навсегда, отменить нельзя. В чужих чатах он останется как «Удалённый аккаунт».")
+                    androidx.compose.material3.OutlinedTextField(reason, { reason = it.take(200) }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Причина, её увидит пользователь") })
+                }
+            },
+            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/delete", mapOf("reason" to reason.trim()), "Аккаунт удалён"); deleteFor = null; reason = "" }) { Text("Удалить навсегда", color = Red) } },
+            dismissButton = { TextButton({ deleteFor = null; reason = "" }) { Text("Отмена") } },
         )
     }
     banFor?.let { u ->
         AlertDialog(
-            onDismissRequest = { banFor = null },
+            onDismissRequest = { banFor = null; reason = "" },
             title = { Text("Заблокировать ${u.displayName}?") },
-            text = { Text("Он сразу выйдет из аккаунта и не сможет войти.") },
-            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/ban", mapOf("banned" to true), "Заблокирован"); banFor = null }) { Text("Заблокировать", color = Red) } },
-            dismissButton = { TextButton({ banFor = null }) { Text("Отмена") } },
+            text = {
+                Column {
+                    Text("Он сразу выйдет из аккаунта и не сможет войти.")
+                    androidx.compose.material3.OutlinedTextField(reason, { reason = it.take(200) }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Причина, её увидит пользователь") })
+                }
+            },
+            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/ban", mapOf("banned" to true, "reason" to reason.trim()), "Заблокирован"); banFor = null; reason = "" }) { Text("Заблокировать", color = Red) } },
+            dismissButton = { TextButton({ banFor = null; reason = "" }) { Text("Отмена") } },
         )
     }
 }
