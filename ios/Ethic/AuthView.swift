@@ -51,6 +51,7 @@ struct AuthView: View {
     @State private var code = ""
     @State private var password = ""
     @State private var invite = ""
+    @State private var needLoginCode = false
     @State private var error = ""
     @State private var hint = ""
     @State private var busy = false
@@ -69,6 +70,7 @@ struct AuthView: View {
                 case .login:
                     Field(title: store.emailEnabled ? "Логин или почта" : "Логин", text: $login)
                     Field(title: "Пароль", text: $password, secure: true)
+                    if needLoginCode { Field(title: "Код из письма", text: $code, keyboard: .numberPad) }
                     if store.emailEnabled {
                         Button("Забыли пароль?") { mode = .reset; error = ""; hint = "" }
                             .font(.subheadline).foregroundStyle(muted).frame(maxWidth: .infinity, alignment: .trailing)
@@ -115,7 +117,7 @@ struct AuthView: View {
                 .disabled(busy)
                 Button(mode == .login ? "Нет аккаунта? Зарегистрироваться" : mode == .register ? "Уже есть аккаунт? Войти" : "Назад ко входу") {
                     mode = mode == .login ? .register : .login
-                    error = ""; hint = ""; code = ""
+                    error = ""; hint = ""; code = ""; needLoginCode = false
                 }
                 .foregroundStyle(.white).padding(.top, 4)
             }
@@ -130,11 +132,13 @@ struct AuthView: View {
         Task {
             do {
                 switch mode {
-                case .login: try await store.auth("/api/login", ["username": login.trimmed, "password": password])
+                case .login: try await store.auth("/api/login", ["username": login.trimmed, "password": password, "loginCode": code])
                 case .register: try await store.auth("/api/register", ["username": login.trimmed, "displayName": name.trimmed, "password": password,
                                                                        "invite": invite.trimmed, "email": email.trimmed, "emailCode": code])
                 case .reset: try await store.auth("/api/password/reset", ["login": login.trimmed, "code": code, "password": password])
                 }
+            } catch let e as APIError where e.status == 428 {
+                needLoginCode = true; code = ""; hint = "Код отправлен на почту аккаунта"
             } catch { self.error = error.localizedDescription }
             busy = false
         }

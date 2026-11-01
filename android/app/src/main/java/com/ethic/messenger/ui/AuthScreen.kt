@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ethic.messenger.R
 import com.ethic.messenger.data.Api
+import com.ethic.messenger.data.ApiError
 import com.ethic.messenger.data.Repo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -84,6 +85,7 @@ fun AuthScreen() {
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var invite by remember { mutableStateOf("") }
+    var needLoginCode by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var hint by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -116,6 +118,7 @@ fun AuthScreen() {
             Mode.LOGIN -> {
                 Field(login, { login = it }, if (emailOn) "Логин или почта" else "Логин")
                 Field(password, { password = it }, "Пароль", password = true)
+                if (needLoginCode) Field(code, { code = it.filter(Char::isDigit).take(6) }, "Код из письма", keyboard = KeyboardType.NumberPassword)
                 if (emailOn) TextButton({ mode = Mode.RESET; error = ""; hint = "" }, Modifier.align(Alignment.End)) { Text("Забыли пароль?", color = Muted) }
             }
             Mode.REGISTER -> {
@@ -156,7 +159,12 @@ fun AuthScreen() {
             onClick = {
                 run {
                     when (mode) {
-                        Mode.LOGIN -> Repo.auth("/api/login", mapOf("username" to login.trim(), "password" to password))
+                        Mode.LOGIN -> try {
+                            Repo.auth("/api/login", mapOf("username" to login.trim(), "password" to password, "loginCode" to code))
+                        } catch (e: ApiError) {
+                            if (e.status != 428) throw e
+                            needLoginCode = true; code = ""; hint = "Код отправлен на почту аккаунта"
+                        }
                         Mode.REGISTER -> Repo.auth("/api/register", mapOf(
                             "username" to login.trim(), "displayName" to name.trim(), "password" to password,
                             "invite" to invite.trim(), "email" to email.trim(), "emailCode" to code,
@@ -175,7 +183,7 @@ fun AuthScreen() {
         }
         TextButton({
             mode = if (mode == Mode.LOGIN) Mode.REGISTER else Mode.LOGIN
-            error = ""; hint = ""; code = ""
+            error = ""; hint = ""; code = ""; needLoginCode = false
         }) {
             Text(
                 when (mode) { Mode.LOGIN -> "Нет аккаунта? Зарегистрироваться"; Mode.REGISTER -> "Уже есть аккаунт? Войти"; Mode.RESET -> "Назад ко входу" },

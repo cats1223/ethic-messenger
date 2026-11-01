@@ -24,7 +24,7 @@ android {
             manifestPlaceholders["cleartext"] = "true"
         }
         release {
-            buildConfigField("String", "API_BASE", "\"https://213-108-23-40.sslip.io:8443\"")
+            buildConfigField("String", "API_BASE", "\"https://ethicmessenger.duckdns.org:8443\"")
             manifestPlaceholders["cleartext"] = "false"
             isMinifyEnabled = false
             // Phones only: keeps the WebRTC native libraries for other CPUs out of the APK.

@@ -7,7 +7,7 @@ struct APIError: LocalizedError {
 }
 
 enum API {
-    static let base = "https://213-108-23-40.sslip.io:8443"
+    static let base = "https://ethicmessenger.duckdns.org:8443"
     static let ws = base.replacingOccurrences(of: "https://", with: "wss://") + "/ws"
     static var token: String? = UserDefaults.standard.string(forKey: "token")
 
