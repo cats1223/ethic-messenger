@@ -100,6 +100,15 @@ object Repo {
     }
 
     /** Restores the saved session; false when there is none or it expired. */
+    /** Ethic OS: signs in from the system account. Not after the person signed out of the messenger themselves. */
+    suspend fun signInWithSystem(ctx: android.content.Context, manual: Boolean = false): Boolean {
+        if (!manual && prefs.getBoolean("systemSignedOut", false)) return false
+        val token = com.ethic.messenger.SystemAccount.token(ctx) ?: return false
+        Api.token = token
+        prefs.edit().putString("token", token).remove("systemSignedOut").apply()
+        return restore()
+    }
+
     suspend fun restore(): Boolean {
         if (Api.token == null) return false
         return try {
@@ -126,6 +135,7 @@ object Repo {
 
     fun logout() {
         val t = Api.token
+        prefs.edit().putBoolean("systemSignedOut", true).apply()
         scope.launch {
             if (t != null) { com.ethic.messenger.Push.unregister(); runCatching { Api.call("/api/logout", "POST") } }
             clearSession()

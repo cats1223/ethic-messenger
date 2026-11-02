@@ -114,6 +114,18 @@ fun AuthScreen() {
         )
         Spacer(Modifier.height(8.dp))
         val emailOn = Repo.emailEnabled
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val systemName = remember { com.ethic.messenger.SystemAccount.username(ctx) }
+        if (systemName != null && mode == Mode.LOGIN) {
+            Button(
+                { run { if (!Repo.signInWithSystem(ctx, manual = true)) error = "Ethic ID не выдал вход. Проверьте сеть" } },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+            ) { Text("Войти как @$systemName", fontWeight = FontWeight.Bold) }
+            Text("или с другим аккаунтом", color = Muted, fontSize = 13.sp)
+        }
         when (mode) {
             Mode.LOGIN -> {
                 Field(login, { login = it }, if (emailOn) "Логин или почта" else "Логин")

@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "EthicMessenger"
 include(":app")
+include(":clicker")

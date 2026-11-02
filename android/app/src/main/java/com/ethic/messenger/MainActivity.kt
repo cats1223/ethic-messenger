@@ -97,7 +97,7 @@ private fun Root(onReady: () -> Unit) {
 
     LaunchedEffect(Unit) {
         Repo.loadConfig()
-        boot = if (Repo.restore()) Boot.APP else Boot.AUTH
+        boot = if (Repo.restore() || Repo.signInWithSystem(ctx)) Boot.APP else Boot.AUTH
         onReady()
     }
     LaunchedEffect(loggedOut) { if (loggedOut) { Nav.stack.clear(); boot = Boot.AUTH } }

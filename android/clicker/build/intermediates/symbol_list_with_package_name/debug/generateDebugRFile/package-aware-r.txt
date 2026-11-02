@@ -1,0 +1,2 @@
+com.ethic.clicker
+drawable logo
