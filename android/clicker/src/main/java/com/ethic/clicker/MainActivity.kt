@@ -228,7 +228,7 @@ private fun Clicker() {
         Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
             Box(
                 Modifier.size(220.dp).scale(pulse).clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(Color(0xFF8A8A92), Color(0xFF1C1C20))))
+                    .background(Brush.radialGradient(listOf(Color(0xFFE8E8EE), Color(0xFF8A8A92))))
                     .clickable(remember { MutableInteractionSource() }, null) { pending++; pressed++ },
                 contentAlignment = Alignment.Center,
             ) { Image(painterResource(R.drawable.pandemonium), "Ethic Pandemonium", Modifier.size(190.dp)) }
