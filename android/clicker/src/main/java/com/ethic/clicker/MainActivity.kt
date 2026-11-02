@@ -216,7 +216,7 @@ private fun Clicker(resumes: Int) {
             val n = pending
             if (n > 0) {
                 pending -= n
-                runCatching { api.call("/api/clicker/clicks", JSONObject().put("count", n)) }.onSuccess { state = parse(it) }
+                runCatching { api.call("/api/clicker/clicks", JSONObject().put("count", n)) }.onSuccess { state = parse(it) }.onFailure { pending += n }
             }
         }
     }
