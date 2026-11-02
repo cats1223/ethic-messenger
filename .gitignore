@@ -22,3 +22,5 @@ ios/build/
 desktop/node_modules/
 desktop/dist/
 android/app/google-services.json
+
+android/clicker/build/

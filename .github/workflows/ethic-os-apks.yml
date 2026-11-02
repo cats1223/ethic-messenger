@@ -1,5 +1,5 @@
 name: APK для образа Ethic OS
-# The clicker exists only in the Ethic OS image: it is kept as a short-lived artifact, never put in a release.
+# The clicker exists only in the Ethic OS image. Both APKs are short-lived test artifacts, never put in a release.
 on:
   push:
     branches: [next-update]
@@ -10,20 +10,22 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
       - name: Build
         working-directory: android
         env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          VERSION_NAME: 2.7.8-test
         run: |
-          echo "VERSION_CODE=$(( 100 + ${{ github.run_number }} + 1000 ))" >> "$GITHUB_ENV"
-          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          chmod +x gradlew
-          VERSION_NAME=1.0.${{ github.run_number }} VERSION_CODE=${{ github.run_number }} ./gradlew --no-daemon :clicker:assembleRelease
+          VERSION_CODE=${{ github.run_number }} ./gradlew :clicker:assembleRelease --no-daemon
+          VERSION_CODE=$(( 150 + ${{ github.run_number }} )) ./gradlew :app:assembleRelease --no-daemon
       - name: Sign
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -33,14 +35,19 @@ jobs:
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/zipalign" -p -f 4 android/clicker/build/outputs/apk/release/clicker-release-unsigned.apk aligned.apk
-          "$BT/apksigner" sign --ks release.keystore --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
-            --key-pass env:ANDROID_KEY_PASSWORD --ks-key-alias "$ANDROID_KEY_ALIAS" \
-            --out Ethic-Clicker.apk aligned.apk
-          "$BT/apksigner" verify --print-certs Ethic-Clicker.apk | head -3
-          rm release.keystore
+          sign() {
+            "$BT/zipalign" -p -f 4 "$1" aligned.apk
+            "$BT/apksigner" sign --ks release.keystore --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+              --key-pass env:ANDROID_KEY_PASSWORD --ks-key-alias "$ANDROID_KEY_ALIAS" --out "$2" aligned.apk
+            "$BT/apksigner" verify --print-certs "$2" | head -3
+          }
+          sign android/clicker/build/outputs/apk/release/clicker-release-unsigned.apk Ethic-Clicker.apk
+          sign android/app/build/outputs/apk/release/app-release-unsigned.apk Ethic-Messenger-test.apk
+          rm release.keystore aligned.apk
       - uses: actions/upload-artifact@v7
         with:
-          name: ethic-clicker
-          path: Ethic-Clicker.apk
+          name: ethic-os-apks
+          path: |
+            Ethic-Clicker.apk
+            Ethic-Messenger-test.apk
           retention-days: 3
