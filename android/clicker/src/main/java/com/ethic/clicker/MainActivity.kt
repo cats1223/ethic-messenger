@@ -231,7 +231,7 @@ private fun Clicker() {
                     .background(Brush.radialGradient(listOf(Color(0xFF8A8A92), Color(0xFF1C1C20))))
                     .clickable(remember { MutableInteractionSource() }, null) { pending++; pressed++ },
                 contentAlignment = Alignment.Center,
-            ) { Image(painterResource(R.drawable.logo), null, Modifier.size(170.dp)) }
+            ) { Image(painterResource(R.drawable.pandemonium), "Ethic Pandemonium", Modifier.size(190.dp)) }
         }
         Text("${s.clicks + pending} кликов сегодня", color = Muted, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         if (error.isNotEmpty()) Text(error, color = Red, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)

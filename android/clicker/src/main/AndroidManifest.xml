@@ -9,7 +9,7 @@
 
     <application
         android:label="Ethic Clicker"
-        android:icon="@drawable/logo"
+        android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:theme="@android:style/Theme.Black.NoTitleBar">
         <activity android:name=".MainActivity" android:exported="true">
