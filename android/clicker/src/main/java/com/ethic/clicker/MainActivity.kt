@@ -95,14 +95,22 @@ private class Api(private val ctx: Context) {
 
     private fun account() = AccountManager.get(ctx).getAccountsByType(ID_PACKAGE).firstOrNull()
 
-    /** The session comes from Ethic ID once and is kept here. */
+    /** Signed out of Ethic ID on this phone, or the account changed: the kept session is over. */
+    fun signedIn() = token != null && account() != null
+
+    /** The session comes from Ethic ID once and is kept here while that account stays in the system. */
     private fun ensureToken(): String {
+        val current = account()
+        if (token != null && prefs.getString("account", null) != current?.name) {
+            token?.let { old -> runCatching { send("/api/logout", JSONObject(), old) } }
+            forget()
+        }
         token?.let { return it }
-        val acc = account() ?: throw ApiError("Войдите в Ethic ID в настройках системы", 0)
+        val acc = current ?: throw ApiError("Войдите в Ethic ID в настройках системы", 0)
         val t = runCatching { AccountManager.get(ctx).getAuthToken(acc, TOKEN_TYPE, null, false, null, null).result.getString(AccountManager.KEY_AUTHTOKEN) }.getOrNull()
             ?: throw ApiError("Ethic ID не выдал вход. Проверьте сеть и попробуйте ещё раз", 0)
         token = t
-        prefs.edit().putString("token", t).apply()
+        prefs.edit().putString("token", t).putString("account", acc.name).apply()
         return t
     }
 
@@ -154,12 +162,19 @@ private fun parse(j: JSONObject): State {
 }
 
 class MainActivity : ComponentActivity() {
+    private var resumes by mutableIntStateOf(0)
+
+    override fun onResume() {
+        super.onResume()
+        resumes++
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color.White, background = Bg, surface = Bg)) {
                 Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
-                    if (onEthicOs(this@MainActivity)) Clicker() else Blocked { finish() }
+                    if (onEthicOs(this@MainActivity)) Clicker(resumes) else Blocked { finish() }
                 }
             }
         }
@@ -176,7 +191,7 @@ private fun Blocked(close: () -> Unit) {
 }
 
 @Composable
-private fun Clicker() {
+private fun Clicker(resumes: Int) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val api = remember { Api(ctx) }
@@ -187,9 +202,13 @@ private fun Clicker() {
     val pulse by animateFloatAsState(if (pressed % 2 == 0) 1f else 0.94f, label = "tap")
 
     suspend fun load() {
-        runCatching { api.call("/api/clicker") }.onSuccess { state = parse(it); error = "" }.onFailure { error = it.message ?: "Ошибка" }
+        runCatching { api.call("/api/clicker") }.onSuccess { state = parse(it); error = "" }.onFailure {
+            error = it.message ?: "Ошибка"
+            if (!api.signedIn()) state = null
+        }
     }
-    LaunchedEffect(Unit) { load() }
+    // Coming back to the app also notices a sign-out from Ethic ID.
+    LaunchedEffect(resumes) { load() }
     // Clicks go to the server in small batches; it decides how many count.
     LaunchedEffect(Unit) {
         while (true) {

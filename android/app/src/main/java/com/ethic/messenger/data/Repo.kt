@@ -105,8 +105,16 @@ object Repo {
         if (!manual && prefs.getBoolean("systemSignedOut", false)) return false
         val token = com.ethic.messenger.SystemAccount.token(ctx) ?: return false
         Api.token = token
-        prefs.edit().putString("token", token).remove("systemSignedOut").apply()
+        prefs.edit().putString("token", token).putString("systemAccount", com.ethic.messenger.SystemAccount.username(ctx)).remove("systemSignedOut").apply()
         return restore()
+    }
+
+    /** Ethic OS: the system account this session came from left the phone or changed, so the session ends too. */
+    suspend fun dropIfSystemAccountGone(ctx: android.content.Context) {
+        val was = prefs.getString("systemAccount", null) ?: return
+        if (com.ethic.messenger.SystemAccount.username(ctx) == was) return
+        if (Api.token != null) { com.ethic.messenger.Push.unregister(); runCatching { Api.call("/api/logout", "POST") } }
+        clearSession()
     }
 
     suspend fun restore(): Boolean {
@@ -146,7 +154,7 @@ object Repo {
 
     private fun clearSession() {
         Api.token = null
-        prefs.edit().remove("token").apply()
+        prefs.edit().remove("token").remove("systemAccount").apply()
         ws?.close(1000, null); ws = null
         me.value = null; chats.value = emptyMap(); messages.value = emptyMap(); users.value = emptyMap()
         loggedOut.value = true

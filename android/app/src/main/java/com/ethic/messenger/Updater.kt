@@ -25,7 +25,7 @@ object Updater {
     val available = MutableStateFlow<Update?>(null)
     val downloading = MutableStateFlow(false)
 
-    private fun parts(v: String) = v.trimStart('v').split('.').map { it.toIntOrNull() ?: 0 }
+    private fun parts(v: String) = v.trimStart('v').split('.').map { p -> p.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
     private fun newer(a: String, b: String): Boolean {
         val x = parts(a); val y = parts(b)
         for (i in 0 until maxOf(x.size, y.size)) { val d = x.getOrElse(i) { 0 } - y.getOrElse(i) { 0 }; if (d != 0) return d > 0 }

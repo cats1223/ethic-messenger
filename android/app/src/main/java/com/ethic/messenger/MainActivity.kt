@@ -61,6 +61,7 @@ import com.ethic.messenger.ui.Nav
 import com.ethic.messenger.ui.PickerScreen
 import com.ethic.messenger.ui.Route
 import com.ethic.messenger.ui.UserScreen
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var ready = false
@@ -71,6 +72,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         handle(intent)
         setContent { EthicTheme { Root { ready = true } } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Repo.scope.launch { Repo.dropIfSystemAccountGone(this@MainActivity) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -97,6 +103,7 @@ private fun Root(onReady: () -> Unit) {
 
     LaunchedEffect(Unit) {
         Repo.loadConfig()
+        Repo.dropIfSystemAccountGone(ctx)
         boot = if (Repo.restore() || Repo.signInWithSystem(ctx)) Boot.APP else Boot.AUTH
         onReady()
     }
