@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -201,6 +202,7 @@ fun ChatScreen(chatId: Long) {
                 }
                 return@Scaffold
             }
+            me?.mute?.takeIf { it.active }?.let { MuteBar(it); return@Scaffold }
             Composer(
                 chat, reply, editing,
                 onCancel = { reply = null; editing = null },
@@ -209,7 +211,10 @@ fun ChatScreen(chatId: Long) {
             )
         },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
+        val theme = myTheme(me)
+        Column(Modifier.padding(pad).fillMaxSize().then(
+            theme?.let { Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(it.bg, Bg), endY = 1400f)) } ?: Modifier,
+        )) {
             val active = chat.call?.participants.orEmpty()
             if (active.isNotEmpty() && call?.chatId != chatId) {
                 Row(
@@ -242,7 +247,9 @@ fun ChatScreen(chatId: Long) {
         }
     }
 
-    menuFor?.let { m -> MessageMenu(m, onDismiss = { menuFor = null }, onReply = { reply = m; editing = null }, onEdit = { editing = m; reply = null }) }
+    var reportFor by remember { mutableStateOf<Message?>(null) }
+    menuFor?.let { m -> MessageMenu(m, onDismiss = { menuFor = null }, onReply = { reply = m; editing = null }, onEdit = { editing = m; reply = null }, onReport = { reportFor = m }) }
+    reportFor?.let { m -> ReportDialog(m) { reportFor = null } }
     if (attachSheet) AttachSheet(chat, reply, onDismiss = { attachSheet = false }, onSent = { reply = null })
 }
 
@@ -265,8 +272,10 @@ private fun Bubble(chat: Chat, m: Message, mine: Boolean, first: Boolean, last: 
     val shape = if (mine) RoundedCornerShape(big, if (first) big else small, if (last) small else small, big)
         .let { RoundedCornerShape(big, if (first) big else small, if (last) big else small, big) }
     else RoundedCornerShape(if (first) big else small, big, big, if (last) big else small)
-    val fg = if (mine) Color.Black else Color.White
-    val sub = if (mine) Color(0xFF555555) else Muted
+    val meNow by Repo.me.collectAsState()
+    val theme = if (mine) myTheme(meNow) else null
+    val fg = if (mine) (if (theme != null) Color.White else Color.Black) else Color.White
+    val sub = if (mine) (if (theme != null) Color(0xCCFFFFFF) else Color(0xFF555555)) else Muted
 
     Row(
         Modifier.fillMaxWidth().padding(top = if (first) 6.dp else 2.dp).graphicsLayer {
@@ -282,7 +291,7 @@ private fun Bubble(chat: Chat, m: Message, mine: Boolean, first: Boolean, last: 
             Spacer(Modifier.width(6.dp))
         }
         Column(
-            Modifier.widthIn(max = 300.dp).clip(shape).background(if (mine) BubbleMine else BubbleOther)
+            Modifier.widthIn(max = 300.dp).clip(shape).background(if (mine) theme?.bubble ?: BubbleMine else BubbleOther)
                 .combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLong() })
                 .padding(if (m.image != null && m.text.isBlank()) 3.dp else 10.dp, if (m.image != null && m.text.isBlank()) 3.dp else 7.dp),
         ) {
@@ -404,7 +413,7 @@ private fun download(ctx: Context, f: FileRef) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, onEdit: () -> Unit) {
+private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, onEdit: () -> Unit, onReport: () -> Unit) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val me = Repo.me.value
@@ -418,6 +427,7 @@ private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, 
             }
             if (mine && !m.pending && m.file?.kind != "voice") SheetItem(Icons.Default.Edit, "Изменить") { onEdit(); onDismiss() }
             if ((mine || me?.isStaff == true) && !m.pending) SheetItem(Icons.Default.Delete, "Удалить", Red) { Repo.deleteMessage(m); onDismiss() }
+            if (!mine && !m.pending) SheetItem(Icons.Default.Flag, "Пожаловаться", Red) { onReport(); onDismiss() }
         }
     }
 }

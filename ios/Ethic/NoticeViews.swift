@@ -8,7 +8,8 @@ struct NoticeOverlay: View {
 
     var body: some View {
         if let e = store.ended {
-            NoticeCard(icon: "nosign", tint: red, title: e.deleted ? "Аккаунт удалён" : "Аккаунт заблокирован", reason: e.reason, note: nil,
+            NoticeCard(icon: "nosign", tint: red, title: e.deleted ? "Аккаунт удалён" : "Аккаунт заблокирован", reason: e.reason,
+                       note: e.until.map { "Блокировка до \(fmtUntil($0))" },
                        button: "Выйти из аккаунта", buttonColor: red, buttonText: .white) { store.leaveEnded() }
         } else if let w = store.warnings.first {
             NoticeCard(icon: "exclamationmark.triangle.fill", tint: amber, title: "Вам выдано предупреждение", reason: w.reason, note: leftText(w.left ?? 0),

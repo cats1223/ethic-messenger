@@ -46,7 +46,8 @@ enum API {
         if !(200..<300).contains(status) {
             if status == 401, let state = obj["accountState"] as? String {
                 let reason = obj["reason"] as? String
-                await MainActor.run { Store.shared.onEnded(state, reason) }
+                let until = obj["until"] as? Double
+                await MainActor.run { Store.shared.onEnded(state, reason, until) }
             } else if status == 401, token != nil, path != "/api/login" { await MainActor.run { Store.shared.sessionExpired() } }
             throw APIError(message: obj["error"] as? String ?? "Ошибка \(status)", status: status)
         }

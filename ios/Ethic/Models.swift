@@ -16,6 +16,15 @@ struct User: Codable, Identifiable, Hashable {
     var plus: Bool?
     var nameStyle: String?
     var bio: String?
+    var mute: Mute?
+    var theme: String?
+
+    /// Muted by staff: reads everything, cannot write until it ends.
+    struct Mute: Codable, Hashable {
+        var until: Double?
+        var reason: String?
+        var active: Bool { until.map { $0 > Date().timeIntervalSince1970 * 1000 } ?? true }
+    }
 
     var isStaff: Bool { role == "owner" || role == "dev" }
     var isVerified: Bool { verified ?? false }

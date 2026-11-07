@@ -79,6 +79,19 @@ struct PlusView: View {
                             }
                         }
                     }
+                    Section("Тема чатов") {
+                        ForEach(chatThemes, id: \.1) { v, label in
+                            Button { save(["theme": v], "Тема изменена") } label: {
+                                HStack {
+                                    Text(label).bold().foregroundStyle(.white)
+                                    Spacer()
+                                    Capsule().fill(chatTheme(v)?.bubble ?? .white).frame(width: 46, height: 18)
+                                    if u.theme == v { Image(systemName: "checkmark").foregroundStyle(.white) }
+                                }
+                            }
+                            .listRowBackground(LinearGradient(colors: [chatTheme(v)?.bg ?? surface2, surface2], startPoint: .leading, endPoint: .trailing))
+                        }
+                    }
                     Section("Видео-баннер") {
                         if isVideoBanner(u.banner), let url = API.abs(u.banner) {
                             VideoBanner(url: url).frame(height: 110).clipShape(RoundedRectangle(cornerRadius: 12))

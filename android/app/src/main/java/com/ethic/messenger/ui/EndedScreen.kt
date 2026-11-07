@@ -40,7 +40,8 @@ val Amber = Color(0xFFF0B232)
 fun EndedScreen() {
     val ended by Repo.ended.collectAsState()
     val e = ended ?: return
-    Notice(Icons.Default.Block, Red, if (e.deleted) "Аккаунт удалён" else "Аккаунт заблокирован", e.reason, null, "Выйти из аккаунта", Red, Color.White) { Repo.leaveEnded() }
+    Notice(Icons.Default.Block, Red, if (e.deleted) "Аккаунт удалён" else "Аккаунт заблокирован", e.reason, e.until?.let { "Блокировка до ${fmtUntil(it)}" },
+        "Выйти из аккаунта", Red, Color.White) { Repo.leaveEnded() }
 }
 
 /** A warning from staff: stays until «Понятно», then the next one if there are more. */

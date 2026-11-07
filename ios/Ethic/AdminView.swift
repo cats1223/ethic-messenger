@@ -18,6 +18,8 @@ struct AdminUser: Codable, Identifiable {
     var nameStyle: String?
     var warnings: Int?
     var warnLimit: Int?
+    var banUntil: Double?
+    var mute: User.Mute?
 
     var asUser: User { User(id: id, username: username, displayName: displayName, avatar: avatar, role: role, verified: verified, badge: badge, online: online, plus: plus, nameStyle: nameStyle) }
 }
@@ -37,6 +39,8 @@ struct AdminView: View {
     @State private var banFor: AdminUser?
     @State private var deleteFor: AdminUser?
     @State private var warnFor: AdminUser?
+    @State private var muteFor: AdminUser?
+    @State private var reports: [ReportCard] = []
     @State private var reason = ""
 
     private var owner: Bool { store.me?.role == "owner" }
@@ -63,6 +67,43 @@ struct AdminView: View {
                 Button("Новый код") { act("/api/admin/invite", [:], "Новый код") }
                 Button("Без кода") { act("/api/admin/invite", ["code": ""], "Код отключён") }
             }
+            if !reports.isEmpty {
+                Section("Жалобы на сообщения: \(reports.count)") {
+                    ForEach(reports) { c in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 10) {
+                                if let a = c.author { AvatarView(user: a, size: 34) }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(c.author?.displayName ?? "").bold()
+                                    Text("@\(c.author?.username ?? "") · " + (c.chatTitle.map { "в группе «\($0)»" } ?? "в личных")).font(.caption).foregroundStyle(muted)
+                                }
+                                Spacer()
+                                if let a = c.author {
+                                    let au = users.first { $0.id == a.id } ?? AdminUser(id: a.id, username: a.username, displayName: a.displayName, avatar: a.avatar, role: a.role)
+                                    Menu {
+                                        Button("Предупредить…") { warnFor = au }
+                                        Button("Замутить…") { muteFor = au }
+                                        Button("Заблокировать…", role: .destructive) { banFor = au }
+                                    } label: { Image(systemName: "ellipsis").foregroundStyle(muted).frame(width: 32, height: 32) }
+                                }
+                            }
+                            Text(c.deleted == true ? "Сообщение уже удалено" : c.text ?? "").foregroundStyle(c.deleted == true ? muted : .white)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(10).background(Color.black, in: RoundedRectangle(cornerRadius: 10))
+                            Text((c.reports ?? []).map { "\($0.reporter?.displayName ?? "?"): \(reportKind($0.kind))" + ($0.reason.map { " — \($0)" } ?? "") }.joined(separator: "\n"))
+                                .font(.caption).foregroundStyle(muted)
+                            HStack {
+                                if c.deleted != true {
+                                    Button("Удалить сообщение", role: .destructive) { act("/api/admin/reports/\(c.messageId)/close", ["deleteMessage": true], "Сообщение удалено") }
+                                        .buttonStyle(.bordered)
+                                }
+                                Button(c.deleted == true ? "Закрыть" : "Отклонить") { act("/api/admin/reports/\(c.messageId)/close", ["deleteMessage": false], "Жалоба отклонена") }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
             Section("Пользователи") {
                 ForEach(users) { u in
                     Menu {
@@ -83,6 +124,10 @@ struct AdminView: View {
                         if owner { Button("Надпись у имени…") { badgeText = u.customBadge ?? ""; badgeFor = u } }
                         if u.id != store.me?.id && u.role != "owner" && (u.role != "dev" || owner) {
                             if u.banned != true { Button("Предупредить…") { warnFor = u } }
+                            if u.banned != true {
+                                if u.mute != nil { Button("Снять мут") { act("/api/admin/users/\(u.id)/mute", ["muted": false], "Мут снят") } }
+                                else { Button("Замутить…") { muteFor = u } }
+                            }
                             if u.banned == true { Button("Разблокировать") { act("/api/admin/users/\(u.id)/ban", ["banned": false]) } }
                             else { Button("Заблокировать", role: .destructive) { banFor = u } }
                         }
@@ -95,7 +140,8 @@ struct AdminView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     NameLine(name: u.displayName, user: u.asUser)
-                                    if u.banned == true { Text("заблокирован").font(.caption).foregroundStyle(red) }
+                                    if u.banned == true { Text("заблокирован" + (u.banUntil.map { " до \(fmtUntil($0))" } ?? "")).font(.caption).foregroundStyle(red) }
+                                    if let m = u.mute { Text("мут" + (m.until.map { " до \(fmtUntil($0))" } ?? "")).font(.caption).foregroundStyle(amber) }
                                 }
                                 if u.banned == true, let why = u.banReason { Text("Причина: \(why)").font(.caption).foregroundStyle(muted) }
                                 HStack(spacing: 6) {
@@ -143,14 +189,18 @@ struct AdminView: View {
             Text(warnIsLast ? "Это \(warnNumber)-е предупреждение: аккаунт сразу заблокируется с этой причиной."
                  : "Это \(warnNumber)-е предупреждение из \(warnFor?.warnLimit ?? 3). Он увидит окно с причиной, на \(warnFor?.warnLimit ?? 3)-м аккаунт заблокируется сам.")
         }
-        .alert("Заблокировать \(banFor?.displayName ?? "")?", isPresented: Binding(get: { banFor != nil }, set: { if !$0 { banFor = nil } })) {
-            TextField("Причина, её увидит пользователь", text: $reason)
-            Button("Заблокировать", role: .destructive) {
-                if let u = banFor { act("/api/admin/users/\(u.id)/ban", ["banned": true, "reason": String(reason.trimmed.prefix(200))], "Заблокирован") }
-                reason = ""
+        .sheet(item: $banFor) { u in
+            PunishSheet(title: "Заблокировать \(u.displayName)?", text: "Он сразу выйдет из аккаунта и увидит окно с причиной и сроком. Блокировка на время снимется сама.",
+                        action: "Заблокировать", initialHours: 24) { hours, why in
+                act("/api/admin/users/\(u.id)/ban", ["banned": true, "hours": hours, "reason": why], "Заблокирован")
             }
-            Button("Отмена", role: .cancel) { reason = "" }
-        } message: { Text("Он сразу выйдет из аккаунта и не сможет войти.") }
+        }
+        .sheet(item: $muteFor) { u in
+            PunishSheet(title: "Замутить \(u.displayName)?", text: "Он сможет читать чаты, но не сможет писать. Увидит срок и причину.",
+                        action: "Замутить", initialHours: 1) { hours, why in
+                act("/api/admin/users/\(u.id)/mute", ["muted": true, "hours": hours, "reason": why], "Замучен")
+            }
+        }
     }
 
     private var warnNumber: Int { (warnFor?.warnings ?? 0) + 1 }
@@ -161,6 +211,8 @@ struct AdminView: View {
             stats = try await API.call("/api/admin/stats")
             let enc = q.trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             users = try API.decode([AdminUser].self, try await API.call("/api/admin/users?q=\(enc)")["users"])
+            reports = (try? API.decode([ReportCard].self, try await API.call("/api/admin/reports")["reports"])) ?? []
+            store.reports = reports.count
         } catch { store.show(error.localizedDescription) }
     }
 

@@ -59,6 +59,21 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
+data class ReportItem(val id: Long, val kind: String = "other", val reason: String? = null, val reporter: User? = null, val createdAt: Long = 0)
+
+@Serializable
+data class ReportCard(
+    val messageId: Long,
+    val chatTitle: String? = null,
+    val text: String? = null,
+    val image: String? = null,
+    val deleted: Boolean = false,
+    val author: User? = null,
+    val createdAt: Long = 0,
+    val reports: List<ReportItem> = emptyList(),
+)
+
+@Serializable
 data class AdminUser(
     val id: Long,
     val username: String = "",
@@ -77,6 +92,8 @@ data class AdminUser(
     val nameStyle: String? = null,
     val warnings: Int = 0,
     val warnLimit: Int = 3,
+    val banUntil: Long? = null,
+    val mute: User.Mute? = null,
 ) {
     val asUser get() = User(id, username, displayName, avatar, role = role, verified = verified, badge = badge, online = online, plus = plus, nameStyle = nameStyle)
 }
@@ -104,13 +121,19 @@ fun AdminScreen() {
     var banFor by remember { mutableStateOf<AdminUser?>(null) }
     var deleteFor by remember { mutableStateOf<AdminUser?>(null) }
     var warnFor by remember { mutableStateOf<AdminUser?>(null) }
+    var muteFor by remember { mutableStateOf<AdminUser?>(null) }
+    var hours by remember { mutableStateOf<Int?>(24) }
     var reason by remember { mutableStateOf("") }
+    val reports = remember { mutableStateListOf<ReportCard>() }
 
     suspend fun reload() {
         runCatching {
             stats = Api.call("/api/admin/stats")
             val list = Api.call("/api/admin/users?q=" + java.net.URLEncoder.encode(q.trim(), "UTF-8"))["users"]!!
             users.clear(); users.addAll(Api.json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(AdminUser.serializer()), list))
+            val rep = Api.call("/api/admin/reports")["reports"]!!
+            reports.clear(); reports.addAll(Api.json.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(ReportCard.serializer()), rep))
+            Repo.reports.value = reports.size
         }.onFailure { Repo.toast(it.message ?: "Ошибка") }
     }
     fun act(path: String, body: Map<String, Any?>, ok: String? = null) = scope.launch {
@@ -158,6 +181,34 @@ fun AdminScreen() {
                     }
                 }
             }
+            if (reports.isNotEmpty()) item {
+                Text("Жалобы на сообщения: ${reports.size}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            }
+            items(reports, key = { "r" + it.messageId }) { c ->
+                Column(
+                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().background(Surface1, RoundedCornerShape(16.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        c.author?.let { Avatar(it, 36.dp) }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.author?.displayName.orEmpty(), fontWeight = FontWeight.Bold)
+                            Text("@${c.author?.username.orEmpty()} · " + (c.chatTitle?.let { "в группе «$it»" } ?: "в личных"), color = Muted, fontSize = 12.sp)
+                        }
+                        IconButton({ selected = users.firstOrNull { it.id == c.author?.id } ?: c.author?.let { AdminUser(it.id, it.username, it.displayName, it.avatar, it.role) } }) {
+                            Icon(Icons.Default.MoreVert, "Действия с автором", tint = Muted)
+                        }
+                    }
+                    Text(if (c.deleted) "Сообщение уже удалено" else c.text.orEmpty(), color = if (c.deleted) Muted else Color.White,
+                        modifier = Modifier.fillMaxWidth().background(Bg, RoundedCornerShape(10.dp)).padding(10.dp))
+                    Text(c.reports.joinToString("\n") { r -> "${r.reporter?.displayName ?: "?"}: ${reportKind(r.kind)}" + (r.reason?.let { " — $it" } ?: "") }, color = Muted, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!c.deleted) OutlinedButton({ act("/api/admin/reports/${c.messageId}/close", mapOf("deleteMessage" to true), "Сообщение удалено") }) { Text("Удалить сообщение", color = Red) }
+                        OutlinedButton({ act("/api/admin/reports/${c.messageId}/close", mapOf("deleteMessage" to false), "Жалоба отклонена") }) { Text(if (c.deleted) "Закрыть" else "Отклонить") }
+                    }
+                }
+            }
             item { SearchField(q, { q = it }, "Поиск пользователей") }
             items(users, key = { it.id }) { u ->
                 Row(
@@ -169,7 +220,8 @@ fun AdminScreen() {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             NameLine(u.displayName, u.asUser, Modifier.weight(1f, fill = false))
-                            if (u.banned) Text("  заблокирован", color = Red, fontSize = 12.sp)
+                            if (u.banned) Text("  заблокирован" + (u.banUntil?.let { " до ${fmtUntil(it)}" } ?: ""), color = Red, fontSize = 12.sp)
+                            u.mute?.let { m -> Text("  мут" + (m.until?.let { " до ${fmtUntil(it)}" } ?: ""), color = Amber, fontSize = 12.sp) }
                         }
                         if (u.banned) u.banReason?.let { Text("Причина: $it", color = Muted, fontSize = 12.sp) }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -196,8 +248,12 @@ fun AdminScreen() {
                 if (owner) SheetItem(Icons.Default.Badge, "Надпись у имени…") { badgeFor = u; selected = null }
                 val canBan = u.id != me?.id && u.role != "owner" && (u.role != "dev" || owner)
                 if (canBan && !u.banned) SheetItem(Icons.Default.Warning, "Предупредить…", Amber) { warnFor = u; selected = null }
+                if (canBan && !u.banned) SheetItem(Icons.Default.Block, if (u.mute != null) "Снять мут" else "Замутить…", Amber) {
+                    if (u.mute != null) act("/api/admin/users/${u.id}/mute", mapOf("muted" to false), "Мут снят") else { hours = 1; muteFor = u }
+                    selected = null
+                }
                 if (canBan) SheetItem(Icons.Default.Block, if (u.banned) "Разблокировать" else "Заблокировать", if (u.banned) Color.White else Red) {
-                    if (u.banned) act("/api/admin/users/${u.id}/ban", mapOf("banned" to false)) else banFor = u
+                    if (u.banned) act("/api/admin/users/${u.id}/ban", mapOf("banned" to false)) else { hours = 24; banFor = u }
                     selected = null
                 }
                 if (owner && u.role != "owner" && !u.username.startsWith("deleted_")) SheetItem(Icons.Default.Block, "Удалить аккаунт", Red) { deleteFor = u; selected = null }
@@ -274,17 +330,37 @@ fun AdminScreen() {
             dismissButton = { TextButton({ warnFor = null; reason = "" }) { Text("Отмена") } },
         )
     }
+    muteFor?.let { u ->
+        AlertDialog(
+            onDismissRequest = { muteFor = null; reason = "" },
+            title = { Text("Замутить ${u.displayName}?") },
+            text = {
+                Column {
+                    Text("Он сможет читать чаты, но не сможет писать. Увидит срок и причину.")
+                    Spacer(Modifier.padding(4.dp))
+                    DurationPicker(hours) { hours = it }
+                    androidx.compose.material3.OutlinedTextField(reason, { reason = it.take(200) }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Причина") })
+                }
+            },
+            confirmButton = {
+                TextButton({ act("/api/admin/users/${u.id}/mute", mapOf("muted" to true, "hours" to hours, "reason" to reason.trim()), "Замучен"); muteFor = null; reason = "" }) { Text("Замутить", color = Amber) }
+            },
+            dismissButton = { TextButton({ muteFor = null; reason = "" }) { Text("Отмена") } },
+        )
+    }
     banFor?.let { u ->
         AlertDialog(
             onDismissRequest = { banFor = null; reason = "" },
             title = { Text("Заблокировать ${u.displayName}?") },
             text = {
                 Column {
-                    Text("Он сразу выйдет из аккаунта и не сможет войти.")
+                    Text("Он сразу выйдет из аккаунта. Блокировка на время снимется сама.")
+                    Spacer(Modifier.padding(4.dp))
+                    DurationPicker(hours) { hours = it }
                     androidx.compose.material3.OutlinedTextField(reason, { reason = it.take(200) }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Причина, её увидит пользователь") })
                 }
             },
-            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/ban", mapOf("banned" to true, "reason" to reason.trim()), "Заблокирован"); banFor = null; reason = "" }) { Text("Заблокировать", color = Red) } },
+            confirmButton = { TextButton({ act("/api/admin/users/${u.id}/ban", mapOf("banned" to true, "hours" to hours, "reason" to reason.trim()), "Заблокирован"); banFor = null; reason = "" }) { Text("Заблокировать", color = Red) } },
             dismissButton = { TextButton({ banFor = null; reason = "" }) { Text("Отмена") } },
         )
     }

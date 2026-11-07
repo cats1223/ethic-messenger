@@ -74,6 +74,7 @@ struct ChatView: View {
     @State private var text = ""
     @State private var reply: Message?
     @State private var editing: Message?
+    @State private var reportFor: Message?
     @State private var photo: PhotosPickerItem?
     @State private var photoPicker = false
     @State private var fileImporter = false
@@ -115,12 +116,18 @@ struct ChatView: View {
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
+            .background {
+                if let t = myTheme(store.me) { LinearGradient(colors: [t.bg, .black], startPoint: .top, endPoint: .center).ignoresSafeArea() }
+            }
             .onChange(of: list.last?.key) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
         }
         .safeAreaInset(edge: .top) { callStrip(chat) }
         .safeAreaInset(edge: .bottom) {
-            if let chat, let req = chat.request { requestBar(chat, mine: req.from == store.me?.id) } else { composer }
+            if let chat, let req = chat.request { requestBar(chat, mine: req.from == store.me?.id) }
+            else if let mute = store.me?.mute, mute.active { MuteBar(m: mute) }
+            else { composer }
         }
+        .sheet(item: $reportFor) { ReportSheet(m: $0) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { if let chat { header(chat) } }
@@ -184,6 +191,9 @@ struct ChatView: View {
         }
         if (m.userId == store.me?.id || store.me?.isStaff == true), !m.isPending {
             Button(role: .destructive) { store.delete(m) } label: { Label("Удалить", systemImage: "trash") }
+        }
+        if m.userId != store.me?.id, !m.isPending {
+            Button(role: .destructive) { reportFor = m } label: { Label("Пожаловаться", systemImage: "flag") }
         }
     }
 
@@ -385,8 +395,9 @@ struct Bubble: View {
     }
 
     var body: some View {
-        let fg: Color = mine ? .black : .white
-        let sub: Color = mine ? Color(white: 0.35) : muted
+        let theme = mine ? myTheme(store.me) : nil
+        let fg: Color = mine ? (theme != nil ? .white : .black) : .white
+        let sub: Color = mine ? (theme != nil ? Color.white.opacity(0.8) : Color(white: 0.35)) : muted
         let photoOnly = m.image != nil && m.text.isEmpty
         HStack(alignment: .bottom, spacing: 6) {
             if mine { Spacer(minLength: 50) }
@@ -426,7 +437,7 @@ struct Bubble: View {
                 .padding(.trailing, photoOnly ? 6 : 0).padding(.bottom, photoOnly ? 4 : 0)
             }
             .padding(.horizontal, photoOnly ? 3 : 12).padding(.vertical, photoOnly ? 3 : 8)
-            .background(mine ? Color.white : Color(white: 0.11), in: shape)
+            .background(mine ? theme?.bubble ?? Color.white : Color(white: 0.11), in: shape)
             if !mine { Spacer(minLength: 50) }
         }
         .padding(.top, first ? 6 : 0)

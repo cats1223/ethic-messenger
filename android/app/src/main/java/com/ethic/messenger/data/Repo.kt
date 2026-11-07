@@ -138,6 +138,7 @@ object Repo {
         remember(listOf(user))
         connectWs()
         com.ethic.messenger.Push.register()
+        if (user.dev) scope.launch { runCatching { Api.call("/api/admin/stats") }.onSuccess { reports.value = it["reports"]?.jsonPrimitive?.int ?: 0 } }
         // Warnings given while the person was offline.
         scope.launch { runCatching { Api.call("/api/warnings") }.onSuccess { queueWarnings(Api.json.decodeFromJsonElement(it["warnings"]!!)) } }
         // Not tied to the caller: the login screen (and its coroutines) goes away right after this.
@@ -156,12 +157,15 @@ object Repo {
     fun onUnauthorized() { scope.launch { clearSession() } }
 
     /** Banned or deleted: the window with the reason covers everything until the person signs out. */
-    data class Ended(val deleted: Boolean, val reason: String?)
+    data class Ended(val deleted: Boolean, val reason: String?, val until: Long? = null)
     val ended = MutableStateFlow<Ended?>(null)
 
-    fun onEnded(state: String, reason: String?) {
+    /** Open reports on messages, for the staff badge. */
+    val reports = MutableStateFlow(0)
+
+    fun onEnded(state: String, reason: String?, until: Long? = null) {
         if (ended.value != null) return
-        ended.value = Ended(state == "deleted", reason)
+        ended.value = Ended(state == "deleted", reason, until)
         ws?.close(1000, null); ws = null
     }
 
@@ -434,6 +438,15 @@ object Repo {
             "scooter:ready" -> scooterAsk.value = true
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
             "warning" -> ev["warning"]?.let { queueWarnings(listOf(Api.json.decodeFromJsonElement(it))) }
+            "mute" -> {
+                val m = ev["mute"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.let { Api.json.decodeFromJsonElement<User.Mute>(it) }
+                me.update { it?.copy(mute = m) }
+            }
+            "reports:count" -> {
+                val n = ev["open"]?.jsonPrimitive?.int ?: 0
+                if (n > reports.value) toast("Новая жалоба на сообщение")
+                reports.value = n
+            }
             "gift" -> toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} дарит вам ${ev["name"]?.jsonPrimitive?.contentOrNull.orEmpty()} №${ev["serial"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
             "chat:removed" -> {
                 val cid = ev.long("chatId")

@@ -138,6 +138,7 @@ final class Store {
         loggedIn = true
         connectWs()
         Task { do { try await loadChats() } catch { show(error.localizedDescription) } }
+        if user.isStaff { Task { if let r = try? await API.call("/api/admin/stats") { reports = (r["reports"] as? NSNumber)?.intValue ?? 0 } } }
         // Warnings given while the person was offline.
         Task {
             if let r = try? await API.call("/api/warnings"), let list = try? API.decode([Warning].self, r["warnings"]) { queueWarnings(list) }
@@ -145,14 +146,16 @@ final class Store {
     }
 
     // MARK: banned, deleted, warned
-    struct Ended: Equatable { let deleted: Bool; let reason: String? }
+    struct Ended: Equatable { let deleted: Bool; let reason: String?; var until: Double? }
+    /// Open reports on messages, for staff.
+    var reports = 0
     struct Warning: Codable, Equatable { let id: Int64; var reason: String?; var left: Int? }
     var ended: Ended?
     var warnings: [Warning] = []
 
-    func onEnded(_ state: String, _ reason: String?) {
+    func onEnded(_ state: String, _ reason: String?, _ until: Double? = nil) {
         guard ended == nil else { return }
-        ended = Ended(deleted: state == "deleted", reason: reason)
+        ended = Ended(deleted: state == "deleted", reason: reason, until: until)
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
     }
 
@@ -411,6 +414,12 @@ final class Store {
             scooterAsk = true
         case "notice":
             if let t = ev["text"] as? String { show(t) }
+        case "mute":
+            me?.mute = try? API.decode(User.Mute.self, ev["mute"])
+        case "reports:count":
+            let n = int(ev["open"])
+            if n > reports { show("Новая жалоба на сообщение") }
+            reports = n
         case "warning":
             if let w = try? API.decode(Warning.self, ev["warning"]) { queueWarnings([w]) }
         case "gift":

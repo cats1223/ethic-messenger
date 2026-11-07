@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -164,6 +165,21 @@ fun PlusScreen() {
                                         .border(2.dp, if (sel) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
                                         .clickable { save(mapOf("nameStyle" to v), "Цвет ника изменён") }.padding(12.dp),
                                 )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text("Тема чатов", color = Muted, fontSize = 13.sp)
+                            CHAT_THEMES.forEach { (v, label) ->
+                                val t = chatTheme(v)
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                        .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(t?.bg ?: Surface2, Surface2)))
+                                        .border(2.dp, if (u.theme == v) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
+                                        .clickable { save(mapOf("theme" to v), "Тема изменена") }.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(label, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                                    Box(Modifier.size(46.dp, 18.dp).clip(RoundedCornerShape(9.dp)).background(t?.bubble ?: Color.White))
+                                }
                             }
                             Spacer(Modifier.height(6.dp))
                             Text("Видео-баннер", color = Muted, fontSize = 13.sp)

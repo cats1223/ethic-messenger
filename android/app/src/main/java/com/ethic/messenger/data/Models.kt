@@ -21,8 +21,16 @@ data class User(
     val plus: Boolean = false,
     val nameStyle: String? = null,
     val bio: String? = null,
+    val mute: Mute? = null,
+    val theme: String? = null,
 ) {
     val isStaff get() = role == "owner" || role == "dev"
+
+    /** Muted by staff: reads everything, cannot write until it ends. */
+    @Serializable
+    data class Mute(val until: Long? = null, val reason: String? = null) {
+        val active get() = until == null || until > System.currentTimeMillis()
+    }
 }
 
 @Serializable
