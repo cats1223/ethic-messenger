@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -60,7 +61,9 @@ object Api {
                 val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrDefault(JsonObject(emptyMap()))
                 if (!r.isSuccessful) {
                     val msg = (obj["error"] as? JsonPrimitive)?.content ?: "Ошибка ${r.code}"
-                    if (r.code == 401 && token != null && path != "/api/login") Repo.onUnauthorized()
+                    val state = (obj["accountState"] as? JsonPrimitive)?.contentOrNull
+                    if (r.code == 401 && state != null) Repo.onEnded(state, (obj["reason"] as? JsonPrimitive)?.contentOrNull)
+                    else if (r.code == 401 && token != null && path != "/api/login") Repo.onUnauthorized()
                     throw ApiError(msg, r.code)
                 }
                 obj

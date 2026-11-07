@@ -71,7 +71,10 @@ final class Store {
                 await start(try API.decode(User.self, res["user"]))
             } catch let e as APIError where e.status != 401 {
                 loggedIn = true; connectWs()
-            } catch { clearSession() }
+            } catch {
+                // Banned or deleted: the token stays, so the window comes back at every start until the person signs out.
+                if ended == nil { clearSession() }
+            }
         }
         booting = false
     }
@@ -135,6 +138,37 @@ final class Store {
         loggedIn = true
         connectWs()
         Task { do { try await loadChats() } catch { show(error.localizedDescription) } }
+        // Warnings given while the person was offline.
+        Task {
+            if let r = try? await API.call("/api/warnings"), let list = try? API.decode([Warning].self, r["warnings"]) { queueWarnings(list) }
+        }
+    }
+
+    // MARK: banned, deleted, warned
+    struct Ended: Equatable { let deleted: Bool; let reason: String? }
+    struct Warning: Codable, Equatable { let id: Int64; var reason: String?; var left: Int? }
+    var ended: Ended?
+    var warnings: [Warning] = []
+
+    func onEnded(_ state: String, _ reason: String?) {
+        guard ended == nil else { return }
+        ended = Ended(deleted: state == "deleted", reason: reason)
+        socket?.cancel(with: .goingAway, reason: nil); socket = nil
+    }
+
+    func leaveEnded() {
+        ended = nil
+        clearSession()
+    }
+
+    private func queueWarnings(_ list: [Warning]) {
+        for w in list where !warnings.contains(where: { $0.id == w.id }) { warnings.append(w) }
+    }
+
+    func warningSeen() {
+        guard let w = warnings.first else { return }
+        warnings.removeFirst()
+        Task { try? await API.call("/api/warnings/\(w.id)/seen", method: "POST", body: [:]) }
     }
 
     func logout() {
@@ -148,6 +182,7 @@ final class Store {
         UserDefaults.standard.removeObject(forKey: "token")
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
         me = nil; chats = [:]; messages = [:]; users = [:]
+        warnings = []
         loggedIn = false
     }
 
@@ -315,7 +350,15 @@ final class Store {
 
     private func closed(_ s: URLSessionWebSocketTask) {
         connected = false
-        if s.closeCode.rawValue == 4001 { show("Сессия завершена"); clearSession(); return }
+        if s.closeCode.rawValue == 4001 {
+            // Banned or deleted: one more request brings the window with the reason.
+            let banned = s.closeReason.flatMap { String(data: $0, encoding: .utf8) } == "banned"
+            Task {
+                if banned { _ = try? await API.call("/api/me") }
+                if self.ended == nil { self.show("Сессия завершена"); self.clearSession() }
+            }
+            return
+        }
         guard API.token != nil else { return }
         retry += 1
         let delay = min(pow(2.0, Double(min(retry, 4))), 15)
@@ -368,6 +411,8 @@ final class Store {
             scooterAsk = true
         case "notice":
             if let t = ev["text"] as? String { show(t) }
+        case "warning":
+            if let w = try? API.decode(Warning.self, ev["warning"]) { queueWarnings([w]) }
         case "gift":
             show("\(ev["from"] as? String ?? "") дарит вам \(ev["name"] as? String ?? "") №\(int(ev["serial"]))")
         case "chat:removed":

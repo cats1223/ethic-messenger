@@ -186,6 +186,8 @@ private fun Root(onReady: () -> Unit) {
                 com.ethic.messenger.ui.ScooterPrompt()
             }
         }
+        com.ethic.messenger.ui.WarningScreen()
+        com.ethic.messenger.ui.EndedScreen()
     }
 }
 

@@ -124,7 +124,8 @@ object Repo {
             start(Api.json.decodeFromJsonElement(res["user"]!!))
             true
         } catch (e: ApiError) {
-            if (e.status == 401) { clearSession(); false } else {
+            // Banned or deleted: the token stays, so the window comes back at every start until the person signs out.
+            if (e.status == 401) { if (ended.value == null) clearSession(); false } else {
                 // Offline: still let the app open, it will reconnect.
                 connectWs(); true
             }
@@ -137,6 +138,8 @@ object Repo {
         remember(listOf(user))
         connectWs()
         com.ethic.messenger.Push.register()
+        // Warnings given while the person was offline.
+        scope.launch { runCatching { Api.call("/api/warnings") }.onSuccess { queueWarnings(Api.json.decodeFromJsonElement(it["warnings"]!!)) } }
         // Not tied to the caller: the login screen (and its coroutines) goes away right after this.
         scope.launch { runCatching { loadChats() }.onFailure { toast(it.message ?: "Не удалось загрузить чаты") } }
     }
@@ -152,10 +155,43 @@ object Repo {
 
     fun onUnauthorized() { scope.launch { clearSession() } }
 
+    /** Banned or deleted: the window with the reason covers everything until the person signs out. */
+    data class Ended(val deleted: Boolean, val reason: String?)
+    val ended = MutableStateFlow<Ended?>(null)
+
+    fun onEnded(state: String, reason: String?) {
+        if (ended.value != null) return
+        ended.value = Ended(state == "deleted", reason)
+        ws?.close(1000, null); ws = null
+    }
+
+    /** Warnings from staff, shown one at a time until «Понятно». */
+    @kotlinx.serialization.Serializable
+    data class Warning(val id: Long, val reason: String? = null, val left: Int = 0)
+    val warnings = MutableStateFlow<List<Warning>>(emptyList())
+
+    private fun queueWarnings(list: List<Warning>) {
+        warnings.update { cur -> cur + list.filter { w -> cur.none { it.id == w.id } } }
+    }
+
+    fun warningSeen() {
+        val w = warnings.value.firstOrNull() ?: return
+        warnings.update { it.drop(1) }
+        scope.launch { runCatching { Api.call("/api/warnings/${w.id}/seen", "POST") } }
+    }
+
+    fun leaveEnded() {
+        // Not straight back in from the Ethic OS account either.
+        prefs.edit().putBoolean("systemSignedOut", true).apply()
+        ended.value = null
+        clearSession()
+    }
+
     private fun clearSession() {
         Api.token = null
         prefs.edit().remove("token").remove("systemAccount").apply()
         ws?.close(1000, null); ws = null
+        warnings.value = emptyList()
         me.value = null; chats.value = emptyMap(); messages.value = emptyMap(); users.value = emptyMap()
         loggedOut.value = true
     }
@@ -339,16 +375,21 @@ object Repo {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 scope.launch { if (webSocket == ws) runCatching { handle(Api.json.parseToJsonElement(text).jsonObject) } }
             }
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = closed(webSocket, code)
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = closed(webSocket, code, reason)
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = closed(webSocket, 0)
         })
     }
 
-    private fun closed(socket: WebSocket, code: Int) {
+    private fun closed(socket: WebSocket, code: Int, reason: String = "") {
         scope.launch {
             if (socket != ws) return@launch
             connected.value = false
-            if (code == 4001) { toast("Сессия завершена"); clearSession(); return@launch }
+            if (code == 4001) {
+                // Banned or deleted: one more request brings the window with the reason.
+                if (reason == "banned") runCatching { Api.call("/api/me") }
+                if (ended.value == null) { toast("Сессия завершена"); clearSession() }
+                return@launch
+            }
             if (Api.token == null) return@launch
             retry++
             delay(minOf(1000L shl minOf(retry, 4), 15_000L))
@@ -392,6 +433,7 @@ object Repo {
             "shop", "coins" -> shopVersion.value++
             "scooter:ready" -> scooterAsk.value = true
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
+            "warning" -> ev["warning"]?.let { queueWarnings(listOf(Api.json.decodeFromJsonElement(it))) }
             "gift" -> toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} дарит вам ${ev["name"]?.jsonPrimitive?.contentOrNull.orEmpty()} №${ev["serial"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
             "chat:removed" -> {
                 val cid = ev.long("chatId")

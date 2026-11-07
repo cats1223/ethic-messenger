@@ -18,7 +18,9 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -73,6 +75,8 @@ data class AdminUser(
     val messages: Int = 0,
     val plus: Boolean = false,
     val nameStyle: String? = null,
+    val warnings: Int = 0,
+    val warnLimit: Int = 3,
 ) {
     val asUser get() = User(id, username, displayName, avatar, role = role, verified = verified, badge = badge, online = online, plus = plus, nameStyle = nameStyle)
 }
@@ -99,6 +103,7 @@ fun AdminScreen() {
     var badgeFor by remember { mutableStateOf<AdminUser?>(null) }
     var banFor by remember { mutableStateOf<AdminUser?>(null) }
     var deleteFor by remember { mutableStateOf<AdminUser?>(null) }
+    var warnFor by remember { mutableStateOf<AdminUser?>(null) }
     var reason by remember { mutableStateOf("") }
 
     suspend fun reload() {
@@ -172,7 +177,9 @@ fun AdminScreen() {
                             BadgeLabel(u.asUser)
                             Text("${u.messages} сообщ.", color = Muted, fontSize = 12.sp)
                         }
+                        if (u.warnings > 0) Text("Предупреждений: ${u.warnings} из ${u.warnLimit}", color = Amber, fontSize = 12.sp)
                     }
+                    IconButton({ selected = u }) { Icon(Icons.Default.MoreVert, "Действия", tint = Muted) }
                 }
             }
         }
@@ -188,6 +195,7 @@ fun AdminScreen() {
                 }
                 if (owner) SheetItem(Icons.Default.Badge, "Надпись у имени…") { badgeFor = u; selected = null }
                 val canBan = u.id != me?.id && u.role != "owner" && (u.role != "dev" || owner)
+                if (canBan && !u.banned) SheetItem(Icons.Default.Warning, "Предупредить…", Amber) { warnFor = u; selected = null }
                 if (canBan) SheetItem(Icons.Default.Block, if (u.banned) "Разблокировать" else "Заблокировать", if (u.banned) Color.White else Red) {
                     if (u.banned) act("/api/admin/users/${u.id}/ban", mapOf("banned" to false)) else banFor = u
                     selected = null
@@ -242,6 +250,28 @@ fun AdminScreen() {
             },
             confirmButton = { TextButton({ act("/api/admin/users/${u.id}/delete", mapOf("reason" to reason.trim()), "Аккаунт удалён"); deleteFor = null; reason = "" }) { Text("Удалить навсегда", color = Red) } },
             dismissButton = { TextButton({ deleteFor = null; reason = "" }) { Text("Отмена") } },
+        )
+    }
+    warnFor?.let { u ->
+        val n = u.warnings + 1
+        val last = n >= u.warnLimit
+        AlertDialog(
+            onDismissRequest = { warnFor = null; reason = "" },
+            title = { Text("Предупредить ${u.displayName}?") },
+            text = {
+                Column {
+                    Text(if (last) "Это $n-е предупреждение: аккаунт сразу заблокируется с этой причиной."
+                        else "Это $n-е предупреждение из ${u.warnLimit}. Он увидит окно с причиной, на ${u.warnLimit}-м аккаунт заблокируется сам.")
+                    androidx.compose.material3.OutlinedTextField(reason, { reason = it.take(200) }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Причина") })
+                }
+            },
+            confirmButton = {
+                TextButton({
+                    act("/api/admin/users/${u.id}/warn", mapOf("reason" to reason.trim()), if (last) "Предупреждение выдано, аккаунт заблокирован" else "Предупреждение выдано: $n из ${u.warnLimit}")
+                    warnFor = null; reason = ""
+                }) { Text(if (last) "Предупредить и заблокировать" else "Предупредить", color = if (last) Red else Amber) }
+            },
+            dismissButton = { TextButton({ warnFor = null; reason = "" }) { Text("Отмена") } },
         )
     }
     banFor?.let { u ->

@@ -16,6 +16,8 @@ struct AdminUser: Codable, Identifiable {
     var messages: Int?
     var plus: Bool?
     var nameStyle: String?
+    var warnings: Int?
+    var warnLimit: Int?
 
     var asUser: User { User(id: id, username: username, displayName: displayName, avatar: avatar, role: role, verified: verified, badge: badge, online: online, plus: plus, nameStyle: nameStyle) }
 }
@@ -34,6 +36,7 @@ struct AdminView: View {
     @State private var badgeText = ""
     @State private var banFor: AdminUser?
     @State private var deleteFor: AdminUser?
+    @State private var warnFor: AdminUser?
     @State private var reason = ""
 
     private var owner: Bool { store.me?.role == "owner" }
@@ -79,6 +82,7 @@ struct AdminView: View {
                         }
                         if owner { Button("Надпись у имени…") { badgeText = u.customBadge ?? ""; badgeFor = u } }
                         if u.id != store.me?.id && u.role != "owner" && (u.role != "dev" || owner) {
+                            if u.banned != true { Button("Предупредить…") { warnFor = u } }
                             if u.banned == true { Button("Разблокировать") { act("/api/admin/users/\(u.id)/ban", ["banned": false]) } }
                             else { Button("Заблокировать", role: .destructive) { banFor = u } }
                         }
@@ -99,7 +103,10 @@ struct AdminView: View {
                                     BadgeLabel(user: u.asUser)
                                     Text("\(u.messages ?? 0) сообщ.").font(.caption).foregroundStyle(muted)
                                 }
+                                if let n = u.warnings, n > 0 { Text("Предупреждений: \(n) из \(u.warnLimit ?? 3)").font(.caption).foregroundStyle(amber) }
                             }
+                            Spacer(minLength: 0)
+                            Image(systemName: "ellipsis").foregroundStyle(muted).frame(width: 32, height: 32)
                         }
                         .foregroundStyle(.white)
                     }
@@ -122,6 +129,20 @@ struct AdminView: View {
             }
             Button("Отмена", role: .cancel) { reason = "" }
         } message: { Text("Логин, фото, почта и вход будут удалены, отменить нельзя.") }
+        .alert("Предупредить \(warnFor?.displayName ?? "")?", isPresented: Binding(get: { warnFor != nil }, set: { if !$0 { warnFor = nil } })) {
+            TextField("Причина, её увидит пользователь", text: $reason)
+            Button(warnIsLast ? "Предупредить и заблокировать" : "Предупредить", role: warnIsLast ? .destructive : nil) {
+                if let u = warnFor {
+                    act("/api/admin/users/\(u.id)/warn", ["reason": String(reason.trimmed.prefix(200))],
+                        warnIsLast ? "Предупреждение выдано, аккаунт заблокирован" : "Предупреждение выдано: \(warnNumber) из \(u.warnLimit ?? 3)")
+                }
+                reason = ""
+            }
+            Button("Отмена", role: .cancel) { reason = "" }
+        } message: {
+            Text(warnIsLast ? "Это \(warnNumber)-е предупреждение: аккаунт сразу заблокируется с этой причиной."
+                 : "Это \(warnNumber)-е предупреждение из \(warnFor?.warnLimit ?? 3). Он увидит окно с причиной, на \(warnFor?.warnLimit ?? 3)-м аккаунт заблокируется сам.")
+        }
         .alert("Заблокировать \(banFor?.displayName ?? "")?", isPresented: Binding(get: { banFor != nil }, set: { if !$0 { banFor = nil } })) {
             TextField("Причина, её увидит пользователь", text: $reason)
             Button("Заблокировать", role: .destructive) {
@@ -131,6 +152,9 @@ struct AdminView: View {
             Button("Отмена", role: .cancel) { reason = "" }
         } message: { Text("Он сразу выйдет из аккаунта и не сможет войти.") }
     }
+
+    private var warnNumber: Int { (warnFor?.warnings ?? 0) + 1 }
+    private var warnIsLast: Bool { warnNumber >= (warnFor?.warnLimit ?? 3) }
 
     private func reload() async {
         do {

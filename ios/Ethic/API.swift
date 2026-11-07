@@ -44,7 +44,10 @@ enum API {
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         let status = (res as? HTTPURLResponse)?.statusCode ?? 0
         if !(200..<300).contains(status) {
-            if status == 401, token != nil, path != "/api/login" { await MainActor.run { Store.shared.sessionExpired() } }
+            if status == 401, let state = obj["accountState"] as? String {
+                let reason = obj["reason"] as? String
+                await MainActor.run { Store.shared.onEnded(state, reason) }
+            } else if status == 401, token != nil, path != "/api/login" { await MainActor.run { Store.shared.sessionExpired() } }
             throw APIError(message: obj["error"] as? String ?? "Ошибка \(status)", status: status)
         }
         return obj

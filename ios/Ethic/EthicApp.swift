@@ -72,6 +72,7 @@ struct RootView: View {
                 }
                 .transition(.opacity).zIndex(4).allowsHitTesting(false)
             }
+            NoticeOverlay().zIndex(5)
         }
         .animation(.spring(duration: 0.35), value: calls.ui?.minimized)
         .animation(.easeInOut, value: calls.incoming?.chatId)
