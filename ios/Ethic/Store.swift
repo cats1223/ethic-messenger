@@ -417,7 +417,7 @@ final class Store {
         case "mute":
             me?.mute = try? API.decode(User.Mute.self, ev["mute"])
         case "reports:count":
-            let n = int(ev["open"])
+            let n = Int(int(ev["open"]))
             if n > reports { show("Новая жалоба на сообщение") }
             reports = n
         case "warning":
