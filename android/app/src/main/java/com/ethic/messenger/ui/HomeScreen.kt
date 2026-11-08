@@ -76,6 +76,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -101,7 +103,7 @@ sealed interface Route {
     data class UserR(val id: Long) : Route
     data class GroupR(val id: Long) : Route
     data object EditProfile : Route
-    data class Picker(val mode: PickMode, val chatId: Long = 0) : Route
+    data class Picker(val mode: PickMode, val chatId: Long = 0, val channel: Boolean = false) : Route
     data class ImageR(val url: String) : Route
     data object Admin : Route
     data object Plus : Route
@@ -209,6 +211,23 @@ private fun ChatsTab() {
     var q by remember { mutableStateOf("") }
     var refreshing by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf<Chat?>(null) }
+    var chooseType by remember { mutableStateOf(false) }
+    // «Создать»: first choose the type.
+    if (chooseType) AlertDialog(
+        onDismissRequest = { chooseType = false },
+        title = { Text("Выберите тип") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(Triple(false, "Группа", "Общайтесь вместе: писать могут все участники"), Triple(true, "Канал", "Пишут только администраторы, остальные читают")).forEach { (ch, name, about) ->
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface2).clickable { chooseType = false; Nav.push(Route.Picker(PickMode.GROUP, channel = ch)) }.padding(14.dp)) {
+                        Text(name, fontWeight = FontWeight.Bold)
+                        Text(about, color = Muted, fontSize = 13.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton({ chooseType = false }) { Text("Отмена") } },
+    )
     val folders by Repo.folders.collectAsState()
     var folder by rememberSaveable { mutableStateOf(Repo.prefs.getString("folder", "all") ?: "all") }
     // «Избранное» on top, then the newest.
@@ -217,7 +236,7 @@ private fun ChatsTab() {
         .filter { (it.isSaved && folder == "all") || (!it.isSaved && inFolder(it, folder, folders)) }
 
     TabScaffold(if (connected) "Чаты" else "Соединение…", actions = {
-        IconButton({ Nav.push(Route.Picker(PickMode.GROUP)) }) { Icon(Icons.Default.GroupAdd, "Новая группа") }
+        IconButton({ chooseType = true }) { Icon(Icons.Default.Add, "Создать") }
     }) { pad ->
         PullToRefreshBox(refreshing, { scope.launch { refreshing = true; runCatching { Repo.loadChats() }; refreshing = false } }, Modifier.padding(pad)) {
             LazyColumn(Modifier.fillMaxSize()) {

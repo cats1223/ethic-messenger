@@ -276,11 +276,11 @@ fun EditProfileScreen() {
 
 /** Pick people: for a new group, adding a member, or ringing someone into the call. */
 @Composable
-fun PickerScreen(mode: PickMode, chatId: Long) {
+fun PickerScreen(mode: PickMode, chatId: Long, channelType: Boolean = false) {
     val scope = rememberCoroutineScope()
     var q by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
-    var channel by remember { mutableStateOf(false) }
+    val channel = channelType
     val found = remember { mutableStateListOf<User>() }
     val picked = remember { mutableStateListOf<Long>() }
     val exclude = when (mode) {
@@ -292,7 +292,7 @@ fun PickerScreen(mode: PickMode, chatId: Long) {
         kotlinx.coroutines.delay(250)
         runCatching { Repo.searchUsers(q.trim(), contacts = true) }.onSuccess { found.clear(); found.addAll(it.filter { u -> u.id !in exclude }) }
     }
-    val heading = when (mode) { PickMode.GROUP -> "Новая группа"; PickMode.ADD_MEMBER -> "Добавить участника"; PickMode.ADD_TO_CALL -> "Добавить в звонок" }
+    val heading = when (mode) { PickMode.GROUP -> if (channel) "Новый канал" else "Новая группа"; PickMode.ADD_MEMBER -> "Добавить участника"; PickMode.ADD_TO_CALL -> "Добавить в звонок" }
     Scaffold(containerColor = Bg, topBar = {
         SimpleTop(heading) {
             if (mode == PickMode.GROUP) TextButton({
@@ -305,12 +305,6 @@ fun PickerScreen(mode: PickMode, chatId: Long) {
     }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
             if (mode == PickMode.GROUP) item { Box(Modifier.padding(16.dp)) { Field(title, { title = it.take(64) }, "Название") } }
-            if (mode == PickMode.GROUP) item {
-                Row(Modifier.fillMaxWidth().clickable { channel = !channel }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Checkbox(channel, null)
-                    Text("Канал: пишут только администраторы")
-                }
-            }
             item { SearchField(q, { q = it }, "Имя или логин") }
             items(found, key = { it.id }) { u ->
                 UserRow(u, trailing = {

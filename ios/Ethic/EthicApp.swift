@@ -28,7 +28,7 @@ enum Route: Hashable {
     case devices
 }
 
-enum PickMode: Hashable { case group, addMember, addToCall }
+enum PickMode: Hashable { case group, channel, addMember, addToCall }
 
 @MainActor
 @Observable

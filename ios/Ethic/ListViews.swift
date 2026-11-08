@@ -6,6 +6,7 @@ struct ChatsView: View {
     @State private var q = ""
     @State private var leaving: Chat?
     @State private var folder = UserDefaults.standard.string(forKey: "folder") ?? "all"
+    @State private var chooseType = false
 
     var body: some View {
         // «Избранное» on top, then the newest.
@@ -30,8 +31,13 @@ struct ChatsView: View {
         .searchable(text: $q, prompt: "Поиск чатов")
         .refreshable { try? await store.loadChats() }
         .navigationTitle(store.connected ? "Чаты" : "Соединение…")
+        // «Создать»: first choose the type.
+        .confirmationDialog("Выберите тип", isPresented: $chooseType, titleVisibility: .visible) {
+            Button("Группа — писать могут все") { Nav.shared.chatsPath.append(.picker(.group, 0)) }
+            Button("Канал — пишут только администраторы") { Nav.shared.chatsPath.append(.picker(.channel, 0)) }
+        }
         .toolbar {
-            NavigationLink(value: Route.picker(.group, 0)) { Image(systemName: "square.and.pencil") }
+            Button { chooseType = true } label: { Image(systemName: "square.and.pencil") }
         }
         .confirmationDialog(leaving.map { $0.isGroup ? "Покинуть группу?" : "Удалить чат?" } ?? "", isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } }), titleVisibility: .visible) {
             Button(leaving?.isGroup == true ? "Покинуть" : "Удалить", role: .destructive) {
@@ -423,7 +429,6 @@ struct PickerView: View {
     @State private var store = Store.shared
     @State private var q = ""
     @State private var title = ""
-    @State private var channel = false
     @State private var found: [User] = []
     @State private var picked: Set<Int64> = []
     @Environment(\.dismiss) private var dismiss
@@ -431,26 +436,26 @@ struct PickerView: View {
     var body: some View {
         let exclude: [Int64] = mode == .addMember ? (store.chats[chatId]?.members.map(\.id) ?? []) : mode == .addToCall ? (Calls.shared.ui?.tiles.map(\.userId) ?? []) : []
         List {
-            if mode == .group { Section { TextField("Название", text: $title); Toggle("Канал: пишут только администраторы", isOn: $channel) } }
+            if mode == .group || mode == .channel { Section { TextField("Название", text: $title) } }
             ForEach(found.filter { !exclude.contains($0.id) }) { u in
                 Button { tap(u) } label: {
                     HStack {
                         UserRow(user: u)
                         Spacer()
-                        if mode == .group { Image(systemName: picked.contains(u.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(picked.contains(u.id) ? blue : muted) }
+                        if mode == .group || mode == .channel { Image(systemName: picked.contains(u.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(picked.contains(u.id) ? blue : muted) }
                     }
                 }
                 .foregroundStyle(.white)
             }
         }
         .searchable(text: $q, prompt: "Имя или логин")
-        .navigationTitle(mode == .group ? "Новая группа" : mode == .addMember ? "Добавить участника" : "Добавить в звонок")
+        .navigationTitle(mode == .group ? "Новая группа" : mode == .channel ? "Новый канал" : mode == .addMember ? "Добавить участника" : "Добавить в звонок")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if mode == .group {
+            if mode == .group || mode == .channel {
                 Button("Создать") {
                     Task {
-                        do { let c = channel ? try await store.createChannel(title.trimmed, Array(picked)) : try await store.createGroup(title.trimmed, Array(picked)); Nav.shared.chatsPath = [.chat(c.id)] }
+                        do { let c = mode == .channel ? try await store.createChannel(title.trimmed, Array(picked)) : try await store.createGroup(title.trimmed, Array(picked)); Nav.shared.chatsPath = [.chat(c.id)] }
                         catch { store.show(error.localizedDescription) }
                     }
                 }
@@ -465,7 +470,7 @@ struct PickerView: View {
 
     private func tap(_ u: User) {
         switch mode {
-        case .group: if picked.contains(u.id) { picked.remove(u.id) } else { picked.insert(u.id) }
+        case .group, .channel: if picked.contains(u.id) { picked.remove(u.id) } else { picked.insert(u.id) }
         case .addMember:
             Task {
                 do { try await store.addMember(chatId, u.id); store.show("\(u.displayName) добавлен(а)"); dismiss() }

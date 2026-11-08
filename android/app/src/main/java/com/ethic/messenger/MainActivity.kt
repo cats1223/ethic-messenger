@@ -201,7 +201,7 @@ private fun Screen(r: Route) {
         is Route.UserR -> UserScreen(r.id)
         is Route.GroupR -> GroupScreen(r.id)
         Route.EditProfile -> EditProfileScreen()
-        is Route.Picker -> PickerScreen(r.mode, r.chatId)
+        is Route.Picker -> PickerScreen(r.mode, r.chatId, r.channel)
         is Route.ImageR -> ImageScreen(r.url)
         Route.Admin -> com.ethic.messenger.ui.AdminScreen()
         Route.Plus -> com.ethic.messenger.ui.PlusScreen()
