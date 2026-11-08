@@ -12,7 +12,7 @@ struct Device: Codable, Identifiable { let id: String; var name: String?; var pl
 struct LinkPreview: Codable { let url: String; var site: String?; var title: String?; var description: String?; var image: String? }
 
 /// The address people see and share: without a port. The app itself still talks to the server on 8443.
-let publicURL = "https://ethicmessenger.duckdns.org"
+let publicURL = "https://ethicmessenger.duckdns.org:8443"
 let reactionEmojis = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"]
 let chatTimers: [(Int, String)] = [(0, "Выключены"), (3600, "Через 1 час"), (86400, "Через 1 день"), (604800, "Через 7 дней")]
 let messageSoundKinds: [(String, String)] = [("drop", "Капля"), ("bubble", "Пузырь"), ("bell", "Колокольчик"), ("none", "Без звука")]

@@ -108,7 +108,7 @@ import com.ethic.messenger.media.Sounds
 import kotlinx.coroutines.launch
 
 /** The address people see and share: without a port. The app itself still talks to the server on 8443. */
-const val PUBLIC_URL = "https://ethicmessenger.duckdns.org"
+const val PUBLIC_URL = "https://ethicmessenger.duckdns.org:8443"
 
 // ---------- links and @mentions in message text ----------
 private val URL_RE = Regex("""(https?://[^\s<]+|www\.[^\s<]+)""")
