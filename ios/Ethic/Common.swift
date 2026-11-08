@@ -57,7 +57,11 @@ struct ChatAvatar: View {
     let chat: Chat
     var size: CGFloat = 52
     var body: some View {
-        if chat.isGroup {
+        if chat.isSaved {
+            // «Избранное»: black and white star.
+            Image(systemName: "star").font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: size, height: size).background(Color(white: 0.12), in: Circle()).overlay(Circle().stroke(Color.white.opacity(0.12)))
+        } else if chat.isGroup {
             ZStack {
                 colorOf(chat.id)
                 if let t = chat.title, !t.isEmpty {

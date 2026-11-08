@@ -7,6 +7,7 @@ import android.graphics.Matrix
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -94,6 +95,10 @@ fun Avatar(user: User?, size: Dp, modifier: Modifier = Modifier, online: Boolean
 
 @Composable
 fun ChatAvatar(chat: Chat, size: Dp, other: User?) {
+    // «Избранное»: black and white star.
+    if (chat.isSaved) return Box(Modifier.size(size).clip(CircleShape).background(Color(0xFF1F1F22)).border(1.dp, Line, CircleShape), contentAlignment = Alignment.Center) {
+        Icon(Icons.Default.StarBorder, null, tint = Color.White, modifier = Modifier.size(size * 0.55f))
+    }
     if (!chat.isGroup) return Avatar(other, size, online = other?.online == true)
     Box(Modifier.size(size).clip(CircleShape).background(colorOf(chat.id)), contentAlignment = Alignment.Center) {
         val t = chat.title.orEmpty()
