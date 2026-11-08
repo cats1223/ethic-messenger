@@ -43,6 +43,20 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- A computer's sign-in QR code scanned with the phone camera. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ethic" android:host="qr" />
+            </intent-filter>
+            <!-- Group invite links. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="ethicmessenger.duckdns.org" android:port="8443" android:pathPrefix="/join/" />
+            </intent-filter>
         </activity>
         <service
             android:name=".call.CallService"

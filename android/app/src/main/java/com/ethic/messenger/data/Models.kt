@@ -23,6 +23,7 @@ data class User(
     val bio: String? = null,
     val mute: Mute? = null,
     val theme: String? = null,
+    val lastSeenPrivacy: String? = null,
 ) {
     val isStaff get() = role == "owner" || role == "dev"
 
@@ -66,6 +67,10 @@ data class Message(
     val replyTo: ReplyRef? = null,
     val editedAt: Long? = null,
     val createdAt: Long = 0,
+    val forwardFrom: ForwardRef? = null,
+    val reactions: List<Reaction> = emptyList(),
+    val expiresAt: Long? = null,
+    val transcript: String? = null,
     // Local-only: messages being sent.
     @Transient val clientId: String? = null,
     @Transient val pending: Boolean = false,
@@ -75,6 +80,24 @@ data class Message(
 ) {
     val kind: String? get() = if (image != null) "photo" else file?.kind
 }
+
+@Serializable
+data class ForwardRef(val id: Long = 0, val name: String = "")
+
+@Serializable
+data class Reaction(val emoji: String, val users: List<Long> = emptyList())
+
+@Serializable
+data class Folder(val id: Long, val name: String, val chatIds: List<Long> = emptyList())
+
+@Serializable
+data class JoinInfo(val id: Long, val type: String = "group", val title: String? = null, val members: Int = 0, val joined: Boolean = false)
+
+@Serializable
+data class Device(val id: String, val name: String = "", val platform: String = "other", val app: String = "", val createdAt: Long = 0, val lastSeen: Long? = null, val current: Boolean = false)
+
+@Serializable
+data class LinkPreview(val url: String, val site: String = "", val title: String = "", val description: String? = null, val image: String? = null)
 
 @Serializable
 data class CallInfo(val participants: List<Long> = emptyList(), val video: Boolean = false, val startedAt: Long = 0)
@@ -91,8 +114,16 @@ data class Chat(
     val othersRead: Long = 0,
     val call: CallInfo? = null,
     val request: RequestRef? = null,
+    val ownerId: Long? = null,
+    val admins: List<Long> = emptyList(),
+    val inviteCode: String? = null,
+    val disappear: Int = 0,
 ) {
-    val isGroup get() = type == "group"
+    /** Groups and channels both have a title and members. */
+    val isGroup get() = type == "group" || type == "channel"
+    val isChannel get() = type == "channel"
+    val isSaved get() = type == "saved"
+    fun isAdmin(userId: Long?) = type == "direct" || type == "saved" || ownerId == userId || userId in admins
     val sortKey get() = lastMessage?.createdAt ?: createdAt
 }
 

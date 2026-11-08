@@ -64,6 +64,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    // QR scanner for «Привязать устройство»; works without Google services (Ethic OS).
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("io.livekit:livekit-android:2.29.1")
     implementation(platform("com.google.firebase:firebase-bom:35.0.2"))

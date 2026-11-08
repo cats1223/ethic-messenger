@@ -96,7 +96,15 @@ object Sounds {
     }
 
     fun sent() { if (messageSounds) play(listOf(Note(0.0, 320.0, 0.14, vol = 0.07, to = 1400.0, attack = 0.01)), 0.25, AudioAttributes.USAGE_ASSISTANCE_SONIFICATION) }
-    fun received() {
+    val messageKinds = listOf("drop" to "Капля", "bubble" to "Пузырь", "bell" to "Колокольчик", "none" to "Без звука")
+    fun received(kind: String? = null) {
+        if (!messageSounds || kind == "none") return
+        val u = AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+        when (kind) {
+            "drop" -> return play(listOf(Note(0.0, 1400.0, 0.18, vol = 0.12, to = 500.0, attack = 0.004)), 0.3, u)
+            "bubble" -> return play(listOf(Note(0.0, 400.0, 0.08, vol = 0.12, to = 900.0), Note(0.09, 600.0, 0.1, vol = 0.1, to = 1300.0)), 0.3, u)
+            "bell" -> return play(listOf(Note(0.0, 1568.0, 0.6, vol = 0.08, attack = 0.003), Note(0.12, 2093.0, 0.6, vol = 0.08, attack = 0.003)), 0.8, u)
+        }
         if (messageSounds) play(listOf(Note(0.0, 988.0, 0.12, "triangle", 0.12, attack = 0.004), Note(0.09, 1319.0, 0.18, "triangle", 0.1, attack = 0.004)), 0.35, AudioAttributes.USAGE_NOTIFICATION)
     }
     // Call sounds go on the voice stream so they follow the call volume.

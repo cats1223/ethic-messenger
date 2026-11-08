@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
@@ -105,6 +107,8 @@ sealed interface Route {
     data object Plus : Route
     data class Shop(val to: String = "") : Route
     data class Support(val staff: Boolean) : Route
+    data object Privacy : Route
+    data object Devices : Route
 }
 
 object Nav {
@@ -205,8 +209,12 @@ private fun ChatsTab() {
     var q by remember { mutableStateOf("") }
     var refreshing by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf<Chat?>(null) }
-    val list = chats.values.sortedByDescending { it.sortKey }
+    val folders by Repo.folders.collectAsState()
+    var folder by rememberSaveable { mutableStateOf(Repo.prefs.getString("folder", "all") ?: "all") }
+    // «Избранное» on top, then the newest.
+    val list = chats.values.sortedWith(compareByDescending<Chat> { it.isSaved }.thenByDescending { it.sortKey })
         .filter { q.isBlank() || Repo.chatName(it).contains(q.trim(), ignoreCase = true) }
+        .filter { (it.isSaved && folder == "all") || (!it.isSaved && inFolder(it, folder, folders)) }
 
     TabScaffold(if (connected) "Чаты" else "Соединение…", actions = {
         IconButton({ Nav.push(Route.Picker(PickMode.GROUP)) }) { Icon(Icons.Default.GroupAdd, "Новая группа") }
@@ -214,6 +222,7 @@ private fun ChatsTab() {
         PullToRefreshBox(refreshing, { scope.launch { refreshing = true; runCatching { Repo.loadChats() }; refreshing = false } }, Modifier.padding(pad)) {
             LazyColumn(Modifier.fillMaxSize()) {
                 item { SearchField(q, { q = it }, "Поиск чатов") }
+                item { FolderTabs(folder) { folder = it; Repo.prefs.edit().putString("folder", it).apply() } }
                 if (list.isEmpty()) item {
                     Text("Пока нет чатов. Найдите друга во вкладке «Люди».", color = Muted, modifier = Modifier.padding(32.dp))
                 }
@@ -247,6 +256,8 @@ private fun ChatsTab() {
                                     when {
                                         chat.request != null -> if (chat.request.from == Repo.me.value?.id) "Заявка отправлена" else "Хочет написать вам"
                                         typers.isNotEmpty() -> "печатает…"
+                                        Repo.draft(chat.id).isNotBlank() -> "✏️ Черновик: ${Repo.draft(chat.id)}"
+                                        chat.isSaved && last == null -> "Заметки и пересланное"
                                         else -> prefix + previewText(last)
                                     },
                                     color = if (typers.isNotEmpty()) Blue else Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -364,6 +375,8 @@ private fun SettingsTab() {
                     SettingsRow(Icons.Default.Email, "Почта", u.email ?: "Не привязана") { emailDialog = true }
                     HorizontalDivider(color = Line)
                 }
+                SettingsRow(Icons.Default.Lock, "Конфиденциальность", "Кто видит, что вы в сети · чёрный список") { Nav.push(Route.Privacy) }
+                SettingsRow(Icons.Default.Devices, "Устройства", "Где выполнен вход · привязать компьютер") { Nav.push(Route.Devices) }
                 SettingsRow(Icons.Default.MusicNote, "Рингтон", Sounds.ringtones.firstOrNull { it.id == Sounds.ringtoneId }?.name) { ringDialog = true }
                 HorizontalDivider(color = Line)
                 SettingsRow(Icons.Default.NotificationsActive, "Звуки сообщений", trailing = {

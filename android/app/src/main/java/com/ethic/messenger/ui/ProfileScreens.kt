@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CheckCircle
@@ -117,7 +118,20 @@ fun UserScreen(id: Long) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(id) { runCatching { Repo.fetchUser(id) } }
     val u = users[id] ?: Repo.user(id)
-    Scaffold(containerColor = Bg, topBar = { SimpleTop("") }) { pad ->
+    var blocked by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    LaunchedEffect(id) { if (id != Repo.me.value?.id) runCatching { Repo.isBlocked(id) }.onSuccess { blocked = it } }
+    Scaffold(containerColor = Bg, topBar = { SimpleTop("") {
+        if (id != Repo.me.value?.id) Box {
+            IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, "Ещё") }
+            androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+                androidx.compose.material3.DropdownMenuItem(text = { Text(if (blocked) "Разблокировать" else "Заблокировать", color = if (blocked) Color.White else Red) }, onClick = {
+                    menu = false
+                    scope.launch { runCatching { Repo.setBlocked(id, !blocked) }.onSuccess { blocked = !blocked; Repo.toast(if (blocked) "Заблокирован: не сможет писать и звонить" else "Разблокирован") }.onFailure { Repo.toast(it.message ?: "") } }
+                })
+            }
+        }
+    } }) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState())) {
             if (u == null) return@Column
             ProfileHeader(u)
@@ -154,7 +168,9 @@ fun GroupScreen(id: Long) {
     val scope = rememberCoroutineScope()
     val chat = chats[id] ?: return
     var leave by remember { mutableStateOf(false) }
-    Scaffold(containerColor = Bg, topBar = { SimpleTop("Группа") }) { pad ->
+    val meId = Repo.me.value?.id
+    var memberMenu by remember { mutableStateOf<Long?>(null) }
+    Scaffold(containerColor = Bg, topBar = { SimpleTop(if (chat.isChannel) "Канал" else "Группа") }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
             item {
                 Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -170,7 +186,26 @@ fun GroupScreen(id: Long) {
                 }
                 Text("Участники", color = Muted, modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp))
             }
-            items(chat.members, key = { it.id }) { m -> UserRow(users[m.id] ?: m) { Nav.push(Route.UserR(m.id)) } }
+            items(chat.members, key = { it.id }) { m ->
+                UserRow(users[m.id] ?: m, trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (m.id == chat.ownerId) "создатель" else if (m.id in chat.admins) "админ" else "", color = Muted, fontSize = 12.sp)
+                        if (chat.isAdmin(meId) && m.id != meId && m.id != chat.ownerId) Box {
+                            IconButton({ memberMenu = m.id }) { Icon(Icons.Default.MoreVert, "Действия", tint = Muted) }
+                            androidx.compose.material3.DropdownMenu(memberMenu == m.id, { memberMenu = null }) {
+                                if (chat.ownerId == meId) androidx.compose.material3.DropdownMenuItem(text = { Text(if (m.id in chat.admins) "Снять администратора" else "Сделать администратором") }, onClick = {
+                                    memberMenu = null
+                                    scope.launch { runCatching { Repo.setAdmin(id, m.id, m.id !in chat.admins) }.onFailure { Repo.toast(it.message ?: "") } }
+                                })
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("Исключить", color = Red) }, onClick = {
+                                    memberMenu = null
+                                    scope.launch { runCatching { Repo.kick(id, m.id) }.onFailure { Repo.toast(it.message ?: "") } }
+                                })
+                            }
+                        }
+                    }
+                }) { Nav.push(Route.UserR(m.id)) }
+            }
         }
     }
     if (leave) AlertDialog(
@@ -245,6 +280,7 @@ fun PickerScreen(mode: PickMode, chatId: Long) {
     val scope = rememberCoroutineScope()
     var q by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
+    var channel by remember { mutableStateOf(false) }
     val found = remember { mutableStateListOf<User>() }
     val picked = remember { mutableStateListOf<Long>() }
     val exclude = when (mode) {
@@ -261,14 +297,20 @@ fun PickerScreen(mode: PickMode, chatId: Long) {
         SimpleTop(heading) {
             if (mode == PickMode.GROUP) TextButton({
                 scope.launch {
-                    runCatching { Repo.createGroup(title.trim(), picked.toList()) }
+                    runCatching { if (channel) Repo.createChannel(title.trim(), picked.toList()) else Repo.createGroup(title.trim(), picked.toList()) }
                         .onSuccess { Nav.pop(); Nav.openChat(it.id) }.onFailure { Repo.toast(it.message ?: "") }
                 }
             }, enabled = title.isNotBlank()) { Text("Создать") }
         }
     }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
-            if (mode == PickMode.GROUP) item { Box(Modifier.padding(16.dp)) { Field(title, { title = it.take(64) }, "Название группы") } }
+            if (mode == PickMode.GROUP) item { Box(Modifier.padding(16.dp)) { Field(title, { title = it.take(64) }, "Название") } }
+            if (mode == PickMode.GROUP) item {
+                Row(Modifier.fillMaxWidth().clickable { channel = !channel }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Checkbox(channel, null)
+                    Text("Канал: пишут только администраторы")
+                }
+            }
             item { SearchField(q, { q = it }, "Имя или логин") }
             items(found, key = { it.id }) { u ->
                 UserRow(u, trailing = {

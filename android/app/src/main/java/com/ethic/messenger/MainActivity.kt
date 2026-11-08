@@ -86,6 +86,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         CallManager.handleIntent(intent)
+        // ethic://qr/… from the phone camera, or a group link opened in the app.
+        intent?.data?.toString()?.takeIf { it.startsWith("ethic://qr/") || it.contains("/join/") }?.let { Repo.pendingLink.value = it }
         intent?.getLongExtra("chatId", 0L)?.takeIf { it > 0 }?.let { Nav.openChat(it) }
     }
 }
@@ -186,6 +188,7 @@ private fun Root(onReady: () -> Unit) {
                 com.ethic.messenger.ui.ScooterPrompt()
             }
         }
+        com.ethic.messenger.ui.LinkDialogs()
         com.ethic.messenger.ui.WarningScreen()
         com.ethic.messenger.ui.EndedScreen()
     }
@@ -204,5 +207,7 @@ private fun Screen(r: Route) {
         Route.Plus -> com.ethic.messenger.ui.PlusScreen()
         is Route.Shop -> com.ethic.messenger.ui.ShopScreen(r.to)
         is Route.Support -> com.ethic.messenger.ui.SupportScreen(r.staff)
+        Route.Privacy -> com.ethic.messenger.ui.PrivacyScreen()
+        Route.Devices -> com.ethic.messenger.ui.DevicesScreen()
     }
 }

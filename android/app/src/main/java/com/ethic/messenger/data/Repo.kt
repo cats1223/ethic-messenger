@@ -74,7 +74,7 @@ object Repo {
         val m = chat.members.firstOrNull { it.id != me.value?.id } ?: chat.members.firstOrNull()
         return m?.let { users.value[it.id] ?: it }
     }
-    fun chatName(chat: Chat) = if (chat.isGroup) chat.title ?: "Группа" else other(chat)?.displayName ?: "Чат"
+    fun chatName(chat: Chat) = if (chat.isSaved) "Избранное" else if (chat.isGroup) chat.title ?: "Группа" else other(chat)?.displayName ?: "Чат"
 
     fun remember(list: List<User>) {
         if (list.isEmpty()) return
@@ -88,6 +88,7 @@ object Repo {
         runCatching { Api.call("/api/config") }.onSuccess {
             emailEnabled = it["emailEnabled"]?.jsonPrimitive?.contentOrNull == "true"
             inviteRequired = it["inviteRequired"]?.jsonPrimitive?.contentOrNull == "true"
+            stt = it["stt"]?.jsonPrimitive?.contentOrNull == "true"
         }
     }
 
@@ -141,6 +142,7 @@ object Repo {
         if (user.dev) scope.launch { runCatching { Api.call("/api/admin/stats") }.onSuccess { reports.value = it["reports"]?.jsonPrimitive?.int ?: 0 } }
         // Warnings given while the person was offline.
         scope.launch { runCatching { Api.call("/api/warnings") }.onSuccess { queueWarnings(Api.json.decodeFromJsonElement(it["warnings"]!!)) } }
+        scope.launch { runCatching { ensureSaved() }; runCatching { loadFolders() } }
         // Not tied to the caller: the login screen (and its coroutines) goes away right after this.
         scope.launch { runCatching { loadChats() }.onFailure { toast(it.message ?: "Не удалось загрузить чаты") } }
     }
@@ -183,6 +185,57 @@ object Repo {
         warnings.update { it.drop(1) }
         scope.launch { runCatching { Api.call("/api/warnings/${w.id}/seen", "POST") } }
     }
+
+    // ---------- social: reactions, forwarding, search, groups, folders, devices ----------
+    var stt = false
+    val folders = MutableStateFlow<List<Folder>>(emptyList())
+    /** A link opened from outside or tapped in a chat: ethic://qr/… or …/join/CODE. */
+    val pendingLink = MutableStateFlow<String?>(null)
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+    private fun chatOf(o: JsonObject): Chat = Api.json.decodeFromJsonElement<Chat>(o["chat"]!!).also { upsertChat(it) }
+
+    fun react(m: Message, emoji: String) = send(mapOf("type" to "react", "chatId" to m.chatId, "messageId" to m.id, "emoji" to emoji))
+    fun forward(m: Message, toChat: Long) = send(mapOf("type" to "forward", "chatId" to toChat, "messageId" to m.id, "clientId" to "f${System.currentTimeMillis()}"))
+    suspend fun search(q: String, chatId: Long?): List<Message> =
+        Api.json.decodeFromJsonElement(Api.call("/api/search?q=${enc(q)}" + (chatId?.let { "&chatId=$it" } ?: ""))["messages"]!!)
+    suspend fun patchChat(id: Long, body: Map<String, Any?>) = chatOf(Api.call("/api/chats/$id", "PATCH", body))
+    suspend fun setAdmin(chatId: Long, userId: Long, admin: Boolean) = chatOf(Api.call("/api/chats/$chatId/admins", "POST", mapOf("userId" to userId, "admin" to admin)))
+    suspend fun kick(chatId: Long, userId: Long) = chatOf(Api.call("/api/chats/$chatId/members/$userId", "DELETE"))
+    suspend fun invite(chatId: Long, off: Boolean = false) = chatOf(Api.call("/api/chats/$chatId/invite", "POST", mapOf("off" to off)))
+    suspend fun joinInfo(code: String): JoinInfo = Api.json.decodeFromJsonElement(Api.call("/api/join/${enc(code)}")["chat"]!!)
+    suspend fun join(code: String) = chatOf(Api.call("/api/join/${enc(code)}", "POST"))
+    suspend fun ensureSaved() = chatOf(Api.call("/api/chats/saved", "POST"))
+    suspend fun createChannel(title: String, ids: List<Long>) = chatOf(Api.call("/api/chats/group", "POST", mapOf("title" to title, "memberIds" to ids, "channel" to true)))
+    suspend fun loadFolders() { folders.value = Api.json.decodeFromJsonElement(Api.call("/api/folders")["folders"]!!) }
+    suspend fun saveFolder(id: Long?, name: String, chatIds: List<Long>) {
+        val body = mapOf("name" to name, "chatIds" to chatIds)
+        folders.value = Api.json.decodeFromJsonElement((if (id == null) Api.call("/api/folders", "POST", body) else Api.call("/api/folders/$id", "PATCH", body))["folders"]!!)
+    }
+    suspend fun deleteFolder(id: Long) { folders.value = Api.json.decodeFromJsonElement(Api.call("/api/folders/$id", "DELETE")["folders"]!!) }
+    suspend fun setBlocked(userId: Long, blocked: Boolean) = Api.call("/api/users/$userId/block", "POST", mapOf("blocked" to blocked))
+    suspend fun isBlocked(userId: Long) = Api.call("/api/users/$userId")["blocked"]?.jsonPrimitive?.contentOrNull == "true"
+    suspend fun blocks(): List<User> = Api.json.decodeFromJsonElement(Api.call("/api/blocks")["users"]!!)
+    suspend fun devices(): List<Device> = Api.json.decodeFromJsonElement(Api.call("/id/v1/devices")["devices"]!!)
+    suspend fun endDevice(id: String) = Api.call("/id/v1/devices/${enc(id)}", "DELETE")
+    suspend fun endOtherDevices() = Api.call("/id/v1/devices/logout-others", "POST")
+    suspend fun approveQr(token: String) = Api.call("/api/qr/${enc(token)}/approve", "POST")["device"]?.jsonPrimitive?.contentOrNull
+    suspend fun preview(url: String): LinkPreview? = Api.call("/api/preview?url=${enc(url)}")["preview"]
+        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.let { Api.json.decodeFromJsonElement(it) }
+    suspend fun transcribe(m: Message) {
+        val text = Api.call("/api/messages/${m.id}/transcript", "POST")["text"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "(тишина)" }
+        editMessages(m.chatId) { l -> l.map { if (it.id == m.id) it.copy(transcript = text) else it } }
+    }
+
+    // Drafts and per-chat sounds live on the phone.
+    fun draft(chatId: Long) = prefs.getString("draft:$chatId", "").orEmpty()
+    fun setDraft(chatId: Long, text: String) = prefs.edit().apply { if (text.isBlank()) remove("draft:$chatId") else putString("draft:$chatId", text) }.apply()
+    fun chatMsgSound(chatId: Long) = prefs.getString("chatMsg:$chatId", null)
+    fun chatRing(chatId: Long) = prefs.getString("chatRing:$chatId", null)
+    fun setChatSounds(chatId: Long, msg: String?, ring: String?) = prefs.edit().apply {
+        if (msg == null) remove("chatMsg:$chatId") else putString("chatMsg:$chatId", msg)
+        if (ring == null) remove("chatRing:$chatId") else putString("chatRing:$chatId", ring)
+    }.apply()
 
     fun leaveEnded() {
         // Not straight back in from the Ethic OS account either.
@@ -438,6 +491,15 @@ object Repo {
             "scooter:ready" -> scooterAsk.value = true
             "notice" -> ev["text"]?.jsonPrimitive?.contentOrNull?.let { toast(it) }
             "warning" -> ev["warning"]?.let { queueWarnings(listOf(Api.json.decodeFromJsonElement(it))) }
+            "reactions" -> {
+                val list: List<Reaction> = j.decodeFromJsonElement(ev["reactions"]!!)
+                editMessages(ev.long("chatId")) { l -> l.map { if (it.id == ev.long("messageId")) it.copy(reactions = list) else it } }
+            }
+            "transcript" -> {
+                val text = ev["text"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "(тишина)" }
+                editMessages(ev.long("chatId")) { l -> l.map { if (it.id == ev.long("messageId")) it.copy(transcript = text) else it } }
+            }
+            "mention" -> if (ev.long("chatId") != activeChat) toast("${ev["from"]?.jsonPrimitive?.contentOrNull.orEmpty()} упомянул(а) вас в «${ev["title"]?.jsonPrimitive?.contentOrNull.orEmpty()}»")
             "mute" -> {
                 val m = ev["mute"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.let { Api.json.decodeFromJsonElement<User.Mute>(it) }
                 me.update { it?.copy(mute = m) }
@@ -504,7 +566,7 @@ object Repo {
         val visible = m.chatId == activeChat && foreground
         updateChat(m.chatId) { it.copy(lastMessage = m, unread = if (!mine && !visible) it.unread + 1 else it.unread) }
         if (!mine) {
-            Sounds.received()
+            Sounds.received(chatMsgSound(m.chatId))
             if (!foreground) com.ethic.messenger.Notifications.message(m, chat)
         }
         if (visible) markRead(m.chatId)

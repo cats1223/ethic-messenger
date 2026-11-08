@@ -91,7 +91,7 @@ object CallManager {
         if (state.value != null || incoming.value != null) return
         Repo.remember(listOf(ev.from))
         incoming.value = ev
-        Sounds.ring()
+        Sounds.ring(Repo.chatRing(ev.chatId) ?: Sounds.ringtoneId)
         if (!Repo.foreground) Notifications.incoming(ev)
         incomingTimeout?.cancel()
         incomingTimeout = Repo.scope.launch { delay(45_000); dismissIncoming() }
@@ -118,14 +118,14 @@ object CallManager {
     }
 
     // ---------- call ----------
-    fun start(chatId: Long, video: Boolean, fallbackTitle: String? = null) {
+    fun start(chatId: Long, video: Boolean, fallbackTitle: String? = null, voiceRoom: Boolean = false) {
         state.value?.let { cur ->
             if (cur.chatId == chatId) state.value = cur.copy(minimized = false) else Repo.toast("Сначала завершите текущий звонок")
             return
         }
         state.value = CallUi(chatId, titleOf(chatId, fallbackTitle), camOn = video)
         Repo.scope.launch {
-            val creds = try { Api.call("/api/chats/$chatId/call", "POST", mapOf("video" to video)) } catch (e: Exception) {
+            val creds = try { Api.call("/api/chats/$chatId/call", "POST", mapOf("video" to video, "room" to voiceRoom)) } catch (e: Exception) {
                 Repo.toast(e.message ?: "Ошибка"); state.value = null; return@launch
             }
             val r = LiveKit.create(app, RoomOptions(adaptiveStream = false, dynacast = true,

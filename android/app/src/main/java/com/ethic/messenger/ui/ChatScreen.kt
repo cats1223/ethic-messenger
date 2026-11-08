@@ -52,6 +52,10 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Shortcut
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -136,6 +140,9 @@ fun ChatScreen(chatId: Long) {
     var editing by remember { mutableStateOf<Message?>(null) }
     var menuFor by remember { mutableStateOf<Message?>(null) }
     var attachSheet by remember { mutableStateOf(false) }
+    var options by remember { mutableStateOf(false) }
+    var reactFor by remember { mutableStateOf<Message?>(null) }
+    var forwardFor by remember { mutableStateOf<Message?>(null) }
 
     DisposableEffect(chatId) {
         Repo.activeChat = chatId
@@ -173,7 +180,10 @@ fun ChatScreen(chatId: Long) {
                             Text(
                                 when {
                                     typers.isNotEmpty() -> if (chat.isGroup) "${typers.joinToString()} печатает…" else "печатает…"
-                                    chat.isGroup -> "${chat.members.size} участн."
+                                    chat.isSaved -> "Заметки и пересланное"
+                                    chat.isChannel -> "Канал · ${chat.members.size} участн."
+                                    chat.isGroup -> "${chat.members.size} участн." + if (chat.disappear > 0) " · ⏱" else ""
+                                    chat.disappear > 0 -> lastSeenText(other) + " · ⏱ исчезающие"
                                     else -> lastSeenText(other)
                                 },
                                 color = if (typers.isNotEmpty() || other?.online == true) Blue else Muted, fontSize = 13.sp, maxLines = 1,
@@ -182,8 +192,12 @@ fun ChatScreen(chatId: Long) {
                     }
                 },
                 actions = {
-                    IconButton({ CallManager.start(chatId, false) }) { Icon(Icons.Default.Call, "Позвонить") }
-                    IconButton({ CallManager.start(chatId, true) }) { Icon(Icons.Default.Videocam, "Видеозвонок") }
+                    if (!chat.isSaved) {
+                        IconButton({ CallManager.start(chatId, false) }) { Icon(Icons.Default.Call, "Позвонить") }
+                        IconButton({ CallManager.start(chatId, true) }) { Icon(Icons.Default.Videocam, "Видеозвонок") }
+                    }
+                    // Everything else about the chat is behind this one button.
+                    IconButton({ options = true }) { Icon(Icons.Default.MoreVert, "Ещё") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
             )
@@ -203,6 +217,11 @@ fun ChatScreen(chatId: Long) {
                 return@Scaffold
             }
             me?.mute?.takeIf { it.active }?.let { MuteBar(it); return@Scaffold }
+            if (chat.isChannel && !chat.isAdmin(me?.id)) {
+                Text("Это канал: писать могут только администраторы. Читайте и ставьте реакции.", color = Muted, fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().background(Surface1).navigationBarsPadding().padding(16.dp))
+                return@Scaffold
+            }
             Composer(
                 chat, reply, editing,
                 onCancel = { reply = null; editing = null },
@@ -248,7 +267,11 @@ fun ChatScreen(chatId: Long) {
     }
 
     var reportFor by remember { mutableStateOf<Message?>(null) }
-    menuFor?.let { m -> MessageMenu(m, onDismiss = { menuFor = null }, onReply = { reply = m; editing = null }, onEdit = { editing = m; reply = null }, onReport = { reportFor = m }) }
+    menuFor?.let { m -> MessageMenu(m, onDismiss = { menuFor = null }, onReply = { reply = m; editing = null }, onEdit = { editing = m; reply = null }, onReport = { reportFor = m },
+        onReact = { reactFor = m }, onForward = { forwardFor = m }) }
+    reactFor?.let { m -> ReactionPicker(m) { reactFor = null } }
+    forwardFor?.let { m -> ForwardDialog(m) { forwardFor = null } }
+    if (options) ChatOptionsSheet(chat) { options = false }
     reportFor?.let { m -> ReportDialog(m) { reportFor = null } }
     if (attachSheet) AttachSheet(chat, reply, onDismiss = { attachSheet = false }, onSent = { reply = null })
 }
@@ -296,6 +319,7 @@ private fun Bubble(chat: Chat, m: Message, mine: Boolean, first: Boolean, last: 
                 .padding(if (m.image != null && m.text.isBlank()) 3.dp else 10.dp, if (m.image != null && m.text.isBlank()) 3.dp else 7.dp),
         ) {
             if (chat.isGroup && !mine && first) Text(Repo.userName(m.userId), color = colorOf(m.userId), fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 2.dp))
+            m.forwardFrom?.let { Text("Переслано от ${it.name}", color = sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 2.dp)) }
             m.replyTo?.let { r ->
                 Row(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(8.dp)).background(if (mine) Color(0x14000000) else Color(0x14FFFFFF)).padding(6.dp)) {
                     Box(Modifier.width(3.dp).heightIn(min = 30.dp).background(Blue, RoundedCornerShape(2.dp)))
@@ -308,10 +332,15 @@ private fun Bubble(chat: Chat, m: Message, mine: Boolean, first: Boolean, last: 
             }
             m.image?.let { PhotoContent(m, it) }
             m.file?.let { f ->
-                if (f.kind == "voice") VoiceContent(m, f, mine) else FileContent(ctx, m, f, mine)
+                if (f.kind == "circle") CircleVideo(m.localUri ?: Api.abs(f.url)!!)
+                else if (f.kind == "voice") VoiceContent(m, f, mine) else FileContent(ctx, m, f, mine)
             }
             if (m.progress in 0f..0.999f && m.pending) LinearProgressIndicator(progress = { m.progress }, Modifier.fillMaxWidth().padding(top = 4.dp), color = Blue)
-            if (m.text.isNotBlank()) Text(m.text, color = fg, fontSize = 16.sp, modifier = Modifier.padding(top = if (m.image != null) 6.dp else 0.dp, start = if (m.image != null) 6.dp else 0.dp))
+            if (m.text.isNotBlank()) Text(linkify(m.text, if (mine && theme == null) Color(0xFF0B57D0) else Color(0xFF8AB4FF)), color = fg, fontSize = 16.sp,
+                modifier = Modifier.padding(top = if (m.image != null) 6.dp else 0.dp, start = if (m.image != null) 6.dp else 0.dp))
+            if (m.text.isNotBlank() && !m.pending) LinkPreviewCard(m.text, mine && theme == null)
+            m.transcript?.let { Text("«$it»", color = sub, fontSize = 13.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, modifier = Modifier.padding(top = 4.dp)) }
+            ReactionsRow(m, mine && theme == null)
             Row(Modifier.align(Alignment.End).padding(top = 2.dp, end = if (m.image != null && m.text.isBlank()) 6.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (m.editedAt != null) Text("изм. ", color = sub, fontSize = 11.sp)
                 Text(timeOf(m.createdAt), color = sub, fontSize = 11.sp)
@@ -413,7 +442,7 @@ private fun download(ctx: Context, f: FileRef) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, onEdit: () -> Unit, onReport: () -> Unit) {
+private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, onEdit: () -> Unit, onReport: () -> Unit, onReact: () -> Unit, onForward: () -> Unit) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val me = Repo.me.value
@@ -421,6 +450,12 @@ private fun MessageMenu(m: Message, onDismiss: () -> Unit, onReply: () -> Unit, 
     ModalBottomSheet(onDismiss, containerColor = Surface1) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             if (!m.pending) SheetItem(Icons.AutoMirrored.Filled.Reply, "Ответить") { onReply(); onDismiss() }
+            if (!m.pending) SheetItem(Icons.Default.EmojiEmotions, "Реакция") { onReact(); onDismiss() }
+            if (!m.pending) SheetItem(Icons.Default.Shortcut, "Переслать") { onForward(); onDismiss() }
+            if (!m.pending && Repo.stt && m.transcript == null && (m.file?.kind == "voice" || m.file?.kind == "circle")) SheetItem(Icons.Default.Subtitles, "Расшифровать в текст") {
+                onDismiss(); Repo.toast("Расшифровываем…")
+                Repo.scope.launch { runCatching { Repo.transcribe(m) }.onFailure { Repo.toast(it.message ?: "Не удалось") } }
+            }
             if (m.text.isNotBlank()) SheetItem(Icons.Default.ContentCopy, "Копировать") {
                 scope.launch { clipboard.setClipEntry(ClipData.newPlainText("text", m.text).toClipEntry()) }
                 Repo.toast("Скопировано"); onDismiss()
@@ -477,11 +512,39 @@ private fun AttachSheet(chat: Chat, reply: Message?, onDismiss: () -> Unit, onSe
             camera.launch(shot!!)
         } else Repo.toast("Нет доступа к камере")
     }
+    // Round video message: the camera app records up to a minute with the front camera.
+    var circleUri by remember { mutableStateOf<Uri?>(null) }
+    val circleCam = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val u = circleUri
+        if (r.resultCode == android.app.Activity.RESULT_OK && u != null) {
+            onDismiss()
+            Repo.sendUpload(ctx, chat.id, u, "voice", "circle.mp4", "", reply, Message(0, 0, 0, file = FileRef(u.toString(), "Видеосообщение", 0, "circle"))) { url, size, _ ->
+                mapOf("file" to mapOf("url" to url, "name" to "Видеосообщение", "size" to size, "kind" to "circle"))
+            }
+            onSent()
+        }
+    }
+    val circlePerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) return@rememberLauncherForActivityResult Repo.toast("Нет доступа к камере")
+        val f = File(ctx.cacheDir, "circle-${System.currentTimeMillis()}.mp4")
+        circleUri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+        runCatching {
+            circleCam.launch(android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)
+                .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, circleUri)
+                .putExtra(android.provider.MediaStore.EXTRA_DURATION_LIMIT, 60)
+                .putExtra(android.provider.MediaStore.EXTRA_VIDEO_QUALITY, 0)
+                .putExtra("android.intent.extras.CAMERA_FACING", 1)
+                .putExtra("android.intent.extras.LENS_FACING_FRONT", 1)
+                .putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+                .addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION))
+        }.onFailure { Repo.toast("Не найдено приложение камеры") }
+    }
     ModalBottomSheet(onDismiss, containerColor = Surface1) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             SheetItem(Icons.Default.Image, "Фото или видео") { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
             SheetItem(Icons.Default.PhotoCamera, "Камера") { camPerm.launch(Manifest.permission.CAMERA) }
             SheetItem(Icons.Default.AttachFile, "Файл") { pickFile.launch("*/*") }
+            SheetItem(Icons.Default.Videocam, "Видеокружок") { circlePerm.launch(Manifest.permission.CAMERA) }
         }
     }
 }
@@ -499,7 +562,9 @@ private fun sendFile(ctx: Context, chat: Chat, f: PickedFile, reply: Message?) {
 @Composable
 private fun Composer(chat: Chat, reply: Message?, editing: Message?, onCancel: () -> Unit, onAttach: () -> Unit, onSent: () -> Unit) {
     val ctx = LocalContext.current
-    var text by remember(chat.id) { mutableStateOf("") }
+    var text by remember(chat.id) { mutableStateOf(Repo.draft(chat.id)) }
+    // Unsent text stays with the chat as a draft.
+    LaunchedEffect(text) { delay(400); if (editing == null) Repo.setDraft(chat.id, text) }
     LaunchedEffect(editing) { if (editing != null) text = editing.text }
     val recorder = remember { VoiceRecorder(ctx) }
     var recording by remember { mutableStateOf(false) }
