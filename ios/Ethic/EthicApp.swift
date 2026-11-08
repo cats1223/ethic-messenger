@@ -24,6 +24,8 @@ enum Route: Hashable {
     case editProfile
     case picker(PickMode, Int64)
     case admin
+    case privacy
+    case devices
 }
 
 enum PickMode: Hashable { case group, addMember, addToCall }
@@ -81,6 +83,7 @@ struct RootView: View {
         .sheet(isPresented: $nav.callPicker) { NavigationStack { PickerView(mode: .addToCall, chatId: calls.ui?.chatId ?? 0) } }
         .task { await store.boot() }
         .modifier(ScooterPrompt())
+        .modifier(LinkDialogs())
         .alert("Доступна версия \(store.update ?? "")", isPresented: Binding(get: { store.update != nil }, set: { if !$0 { store.update = nil } })) {
             Button("Открыть страницу") { if let u = URL(string: "https://github.com/cats1223/ethic-messenger/releases/latest") { UIApplication.shared.open(u) } }
             Button("Позже", role: .cancel) {}
@@ -124,6 +127,8 @@ struct MainTabs: View {
         case .editProfile: EditProfileView()
         case .picker(let mode, let id): PickerView(mode: mode, chatId: id)
         case .admin: AdminView()
+        case .privacy: PrivacyView()
+        case .devices: DevicesView()
         }
     }
 }

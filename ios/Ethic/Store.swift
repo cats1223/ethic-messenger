@@ -37,7 +37,7 @@ final class Store {
         let m = chat.members.first { $0.id != me?.id } ?? chat.members.first
         return m.map { users[$0.id] ?? $0 }
     }
-    func chatName(_ chat: Chat) -> String { chat.isGroup ? (chat.title ?? "Группа") : (other(chat)?.displayName ?? "Чат") }
+    func chatName(_ chat: Chat) -> String { chat.isSaved ? "Избранное" : chat.isGroup ? (chat.title ?? "Группа") : (other(chat)?.displayName ?? "Чат") }
     var sortedChats: [Chat] { chats.values.sorted { $0.sortKey > $1.sortKey } }
     var totalUnread: Int { chats.values.reduce(0) { $0 + ($1.id == activeChat ? 0 : $1.unread) } }
 
@@ -121,6 +121,7 @@ final class Store {
         if let c = try? await API.call("/api/config") {
             emailEnabled = c["emailEnabled"] as? Bool ?? false
             inviteRequired = c["inviteRequired"] as? Bool ?? false
+            stt = c["stt"] as? Bool ?? false
         }
     }
 
@@ -138,11 +139,70 @@ final class Store {
         loggedIn = true
         connectWs()
         Task { do { try await loadChats() } catch { show(error.localizedDescription) } }
+        Task { _ = try? await ensureSaved(); try? await loadFolders() }
         if user.isStaff { Task { if let r = try? await API.call("/api/admin/stats") { reports = (r["reports"] as? NSNumber)?.intValue ?? 0 } } }
         // Warnings given while the person was offline.
         Task {
             if let r = try? await API.call("/api/warnings"), let list = try? API.decode([Warning].self, r["warnings"]) { queueWarnings(list) }
         }
+    }
+
+    // MARK: social: reactions, forwarding, search, groups, folders, devices
+    var stt = false
+    var folders: [Folder] = []
+    /// A link opened from outside or tapped in a chat: ethic://qr/… or …/join/CODE.
+    var pendingLink: String?
+
+    private func enc(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=?+"))) ?? s }
+    @discardableResult private func chatOf(_ o: [String: Any]) throws -> Chat { let c = try API.decode(Chat.self, o["chat"]); upsert(c); return c }
+
+    func react(_ m: Message, _ emoji: String) { send(["type": "react", "chatId": m.chatId, "messageId": m.id, "emoji": emoji]) }
+    func forward(_ m: Message, to chatId: Int64) { send(["type": "forward", "chatId": chatId, "messageId": m.id, "clientId": "f\(Date().timeIntervalSince1970)"]) }
+    func search(_ q: String, chatId: Int64?) async throws -> [Message] {
+        try API.decode([Message].self, try await API.call("/api/search?q=\(enc(q))" + (chatId.map { "&chatId=\($0)" } ?? ""))["messages"])
+    }
+    func patchChat(_ id: Int64, _ body: [String: Any?]) async throws -> Chat { try chatOf(try await API.call("/api/chats/\(id)", method: "PATCH", body: body)) }
+    func setAdmin(_ chatId: Int64, _ userId: Int64, _ admin: Bool) async throws { try chatOf(try await API.call("/api/chats/\(chatId)/admins", method: "POST", body: ["userId": userId, "admin": admin])) }
+    func kick(_ chatId: Int64, _ userId: Int64) async throws { try chatOf(try await API.call("/api/chats/\(chatId)/members/\(userId)", method: "DELETE")) }
+    func invite(_ chatId: Int64, off: Bool = false) async throws -> Chat { try chatOf(try await API.call("/api/chats/\(chatId)/invite", method: "POST", body: ["off": off])) }
+    func joinInfo(_ code: String) async throws -> JoinInfo { try API.decode(JoinInfo.self, try await API.call("/api/join/\(enc(code))")["chat"]) }
+    func join(_ code: String) async throws -> Chat { try chatOf(try await API.call("/api/join/\(enc(code))", method: "POST", body: [:])) }
+    func ensureSaved() async throws -> Chat { try chatOf(try await API.call("/api/chats/saved", method: "POST", body: [:])) }
+    func createChannel(_ title: String, _ ids: [Int64]) async throws -> Chat {
+        try chatOf(try await API.call("/api/chats/group", method: "POST", body: ["title": title, "memberIds": ids, "channel": true]))
+    }
+    func loadFolders() async throws { folders = try API.decode([Folder].self, try await API.call("/api/folders")["folders"]) }
+    func saveFolder(_ id: Int64?, name: String, chatIds: [Int64]) async throws {
+        let body: [String: Any?] = ["name": name, "chatIds": chatIds]
+        let r = id == nil ? try await API.call("/api/folders", method: "POST", body: body) : try await API.call("/api/folders/\(id!)", method: "PATCH", body: body)
+        folders = try API.decode([Folder].self, r["folders"])
+    }
+    func deleteFolder(_ id: Int64) async throws { folders = try API.decode([Folder].self, try await API.call("/api/folders/\(id)", method: "DELETE")["folders"]) }
+    func setBlocked(_ userId: Int64, _ blocked: Bool) async throws { try await API.call("/api/users/\(userId)/block", method: "POST", body: ["blocked": blocked]) }
+    func isBlocked(_ userId: Int64) async -> Bool { ((try? await API.call("/api/users/\(userId)"))?["blocked"] as? Bool) ?? false }
+    func blocks() async throws -> [User] { try API.decode([User].self, try await API.call("/api/blocks")["users"]) }
+    func devices() async throws -> [Device] { try API.decode([Device].self, try await API.call("/id/v1/devices")["devices"]) }
+    func endDevice(_ id: String) async throws { try await API.call("/id/v1/devices/\(enc(id))", method: "DELETE") }
+    func endOtherDevices() async throws { try await API.call("/id/v1/devices/logout-others", method: "POST", body: [:]) }
+    func approveQr(_ token: String) async throws -> String? { try await API.call("/api/qr/\(enc(token))/approve", method: "POST", body: [:])["device"] as? String }
+    func preview(_ url: String) async throws -> LinkPreview? {
+        let r = try await API.call("/api/preview?url=\(enc(url))")
+        return r["preview"] is NSNull ? nil : try? API.decode(LinkPreview.self, r["preview"])
+    }
+    func transcribe(_ m: Message) async throws {
+        let t = (try await API.call("/api/messages/\(m.id)/transcript", method: "POST", body: [:])["text"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "(тишина)"
+        if let i = messages[m.chatId]?.firstIndex(where: { $0.id == m.id }) { messages[m.chatId]?[i].transcript = t }
+    }
+    // Drafts and per-chat sounds live on the phone.
+    func draft(_ chatId: Int64) -> String { UserDefaults.standard.string(forKey: "draft:\(chatId)") ?? "" }
+    func setDraft(_ chatId: Int64, _ text: String) {
+        if text.trimmed.isEmpty { UserDefaults.standard.removeObject(forKey: "draft:\(chatId)") } else { UserDefaults.standard.set(text, forKey: "draft:\(chatId)") }
+    }
+    func chatMsgSound(_ chatId: Int64) -> String? { UserDefaults.standard.string(forKey: "chatMsg:\(chatId)") }
+    func chatRing(_ chatId: Int64) -> String? { UserDefaults.standard.string(forKey: "chatRing:\(chatId)") }
+    func setChatSounds(_ chatId: Int64, msg: String?, ring: String?) {
+        UserDefaults.standard.set(msg, forKey: "chatMsg:\(chatId)")
+        UserDefaults.standard.set(ring, forKey: "chatRing:\(chatId)")
     }
 
     // MARK: banned, deleted, warned
@@ -414,6 +474,16 @@ final class Store {
             scooterAsk = true
         case "notice":
             if let t = ev["text"] as? String { show(t) }
+        case "reactions":
+            let cid = int(ev["chatId"]), mid = int(ev["messageId"])
+            let list = (try? API.decode([Reaction].self, ev["reactions"])) ?? []
+            if let i = messages[cid]?.firstIndex(where: { $0.id == mid }) { messages[cid]?[i].reactions = list }
+        case "transcript":
+            let cid = int(ev["chatId"]), mid = int(ev["messageId"])
+            let t = (ev["text"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "(тишина)"
+            if let i = messages[cid]?.firstIndex(where: { $0.id == mid }) { messages[cid]?[i].transcript = t }
+        case "mention":
+            if int(ev["chatId"]) != activeChat { show("\(ev["from"] as? String ?? "") упомянул(а) вас в «\(ev["title"] as? String ?? "")»") }
         case "mute":
             me?.mute = try? API.decode(User.Mute.self, ev["mute"])
         case "reports:count":
@@ -479,7 +549,7 @@ final class Store {
         let visible = m.chatId == activeChat && foreground
         chats[m.chatId]?.lastMessage = m
         if !mine {
-            Sounds.shared.received()
+            Sounds.shared.received(chatMsgSound(m.chatId))
             if !visible { chats[m.chatId]?.unread += 1 }
         }
         if visible { markRead(m.chatId) }

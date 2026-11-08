@@ -50,7 +50,7 @@ final class Calls {
         guard ui == nil, incoming == nil else { return }
         store.remember([ev.from])
         incoming = ev
-        Sounds.shared.ring()
+        Sounds.shared.ring(store.chatRing(ev.chatId))
         incomingTimeout?.cancel()
         incomingTimeout = Task { try? await Task.sleep(nanoseconds: 45_000_000_000); if !Task.isCancelled { dismissIncoming() } }
     }
@@ -75,7 +75,7 @@ final class Calls {
     }
 
     // MARK: call
-    func start(_ chatId: Int64, video: Bool, fallback: String? = nil) {
+    func start(_ chatId: Int64, video: Bool, fallback: String? = nil, voiceRoom: Bool = false) {
         if let cur = ui {
             if cur.chatId == chatId { ui?.minimized = false } else { store.show("Сначала завершите текущий звонок") }
             return
@@ -83,7 +83,7 @@ final class Calls {
         ui = CallUI(chatId: chatId, title: titleOf(chatId, fallback), camOn: video)
         Task {
             let creds: [String: Any]
-            do { creds = try await API.call("/api/chats/\(chatId)/call", method: "POST", body: ["video": video]) }
+            do { creds = try await API.call("/api/chats/\(chatId)/call", method: "POST", body: ["video": video, "room": voiceRoom]) }
             catch { store.show(error.localizedDescription); ui = nil; return }
             guard let url = creds["url"] as? String, let token = creds["token"] as? String else { ui = nil; return }
             Sounds.shared.stop()

@@ -18,6 +18,9 @@ targets:
       path: Ethic/Info.plist
       properties:
         CFBundleDisplayName: Ethic Messenger
+        CFBundleURLTypes:
+          - CFBundleURLName: com.ethic.messenger
+            CFBundleURLSchemes: [ethic]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:

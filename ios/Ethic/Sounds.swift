@@ -85,7 +85,14 @@ final class Sounds {
     }
 
     func sent() { if messageSounds { play("sent", [Note(at: 0, freq: 320, dur: 0.14, vol: 0.07, to: 1400, attack: 0.01)], 0.25) } }
-    func received() {
+    func received(_ kind: String? = nil) {
+        guard messageSounds, kind != "none" else { return }
+        switch kind {
+        case "drop": return play("drop", [Note(at: 0, freq: 1400, dur: 0.18, vol: 0.12, to: 500, attack: 0.004)], 0.3)
+        case "bubble": return play("bubble", [Note(at: 0, freq: 400, dur: 0.08, vol: 0.12, to: 900), Note(at: 0.09, freq: 600, dur: 0.1, vol: 0.1, to: 1300)], 0.3)
+        case "bell": return play("bell", [Note(at: 0, freq: 1568, dur: 0.6, vol: 0.08, attack: 0.003), Note(at: 0.12, freq: 2093, dur: 0.6, vol: 0.08, attack: 0.003)], 0.8)
+        default: break
+        }
         if messageSounds { play("recv", [Note(at: 0, freq: 988, dur: 0.12, wave: "triangle", vol: 0.12, attack: 0.004), Note(at: 0.09, freq: 1319, dur: 0.18, wave: "triangle", vol: 0.1, attack: 0.004)], 0.35) }
     }
     func join() { play("join", [Note(at: 0, freq: 587, dur: 0.16, wave: "triangle", vol: 0.14, attack: 0.005), Note(at: 0.11, freq: 880, dur: 0.24, wave: "triangle", vol: 0.14, attack: 0.005)], 0.4) }

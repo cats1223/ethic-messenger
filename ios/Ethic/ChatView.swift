@@ -75,6 +75,11 @@ struct ChatView: View {
     @State private var reply: Message?
     @State private var editing: Message?
     @State private var reportFor: Message?
+    @State private var forwardFor: Message?
+    @State private var searching = false
+    @State private var settingsOpen = false
+    @State private var soundsOpen = false
+    @State private var recordCircle = false
     @State private var photo: PhotosPickerItem?
     @State private var photoPicker = false
     @State private var fileImporter = false
@@ -124,16 +129,63 @@ struct ChatView: View {
         .safeAreaInset(edge: .top) { callStrip(chat) }
         .safeAreaInset(edge: .bottom) {
             if let chat, let req = chat.request { requestBar(chat, mine: req.from == store.me?.id) }
+            else if let chat, chat.isChannel, !chat.isAdmin(store.me?.id) {
+                Text("Это канал: писать могут только администраторы. Читайте и ставьте реакции.").font(.subheadline).foregroundStyle(muted)
+                    .frame(maxWidth: .infinity).padding(14).glass(RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 12).padding(.bottom, 8)
+            }
             else if let mute = store.me?.mute, mute.active { MuteBar(m: mute) }
             else { composer }
         }
         .sheet(item: $reportFor) { ReportSheet(m: $0) }
+        .sheet(item: $forwardFor) { ForwardSheet(m: $0) }
+        .sheet(isPresented: $searching) { SearchSheet(chatId: chatId) }
+        .sheet(isPresented: $settingsOpen) { GroupSettingsSheet(chatId: chatId) }
+        .sheet(isPresented: $soundsOpen) { SoundsSheet(chatId: chatId) }
+        .fullScreenCover(isPresented: $recordCircle) {
+            CircleRecorder { url in
+                recordCircle = false
+                guard let url else { return }
+                store.sendUpload(chatId, file: url, kind: "voice", name: "circle.mp4", reply: reply,
+                                 preview: Message(id: 0, chatId: chatId, userId: 0, file: FileRef(url: url.absoluteString, name: "Видеосообщение", size: 0, kind: "circle"))) { up in
+                    ["file": ["url": up.url, "name": "Видеосообщение", "size": up.size, "kind": "circle"]]
+                }
+            }
+            .ignoresSafeArea()
+        }
+        // Group links inside the app join instead of opening the browser.
+        .environment(\.openURL, OpenURLAction { url in
+            if joinCode(url) != nil { store.pendingLink = url.absoluteString; return .handled }
+            return .systemAction
+        })
+        .onAppear { if text.isEmpty { text = store.draft(chatId) } }
+        .onChange(of: text) { _, t in if editing == nil { store.setDraft(chatId, t) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { if let chat { header(chat) } }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { calls.start(chatId, video: false) } label: { Image(systemName: "phone") }
-                Button { calls.start(chatId, video: true) } label: { Image(systemName: "video") }
+                if chat?.isSaved != true {
+                    Button { calls.start(chatId, video: false) } label: { Image(systemName: "phone") }
+                    Button { calls.start(chatId, video: true) } label: { Image(systemName: "video") }
+                }
+                // Everything else about the chat is behind this one button.
+                Menu {
+                    if let chat {
+                        if chat.isGroup { NavigationLink(value: Route.group(chatId)) { Label(chat.isChannel ? "Участники канала" : "Участники", systemImage: "person.2") } }
+                        Button { searching = true } label: { Label("Поиск по сообщениям", systemImage: "magnifyingglass") }
+                        if chat.type == "group" { Button { calls.start(chatId, video: false, voiceRoom: true) } label: { Label("Голосовая комната", systemImage: "headphones") } }
+                        if !chat.isSaved { Button { soundsOpen = true } label: { Label("Звуки чата", systemImage: "music.note") } }
+                        if chat.type == "direct" {
+                            Menu {
+                                ForEach(chatTimers, id: \.0) { s, label in
+                                    Button { Task { do { _ = try await store.patchChat(chatId, ["disappear": s]) } catch { store.show(error.localizedDescription) } } } label: {
+                                        if (chat.disappear ?? 0) == s { Label(label, systemImage: "checkmark") } else { Text(label) }
+                                    }
+                                }
+                            } label: { Label("Исчезающие сообщения", systemImage: "timer") }
+                        }
+                        if chat.isGroup && chat.isAdmin(store.me?.id) { Button { settingsOpen = true } label: { Label(chat.isChannel ? "Настройки канала" : "Настройки группы", systemImage: "gearshape") } }
+                    }
+                } label: { Image(systemName: "ellipsis.circle") }
             }
         }
         .toolbar(.hidden, for: .tabBar)
@@ -185,6 +237,15 @@ struct ChatView: View {
     @ViewBuilder
     private func menu(_ m: Message) -> some View {
         if !m.isPending { Button { reply = m; editing = nil; focused = true } label: { Label("Ответить", systemImage: "arrowshape.turn.up.left") } }
+        if !m.isPending {
+            Menu {
+                ForEach(reactionEmojis, id: \.self) { e in Button(e) { store.react(m, e) } }
+            } label: { Label("Реакция", systemImage: "face.smiling") }
+            Button { forwardFor = m } label: { Label("Переслать", systemImage: "arrowshape.turn.up.right") }
+        }
+        if !m.isPending, store.stt, m.transcript == nil, m.file?.kind == "voice" || m.file?.kind == "circle" {
+            Button { store.show("Расшифровываем…"); Task { do { try await store.transcribe(m) } catch { store.show(error.localizedDescription) } } } label: { Label("Расшифровать в текст", systemImage: "captions.bubble") }
+        }
         if !m.text.isEmpty { Button { UIPasteboard.general.string = m.text; store.show("Скопировано") } label: { Label("Копировать", systemImage: "doc.on.doc") } }
         if m.userId == store.me?.id, !m.isPending, m.file?.kind != "voice" {
             Button { editing = m; reply = nil; text = m.text; focused = true } label: { Label("Изменить", systemImage: "pencil") }
@@ -246,6 +307,7 @@ struct ChatView: View {
                         Menu {
                             Button { photoPicker = true } label: { Label("Фото или видео", systemImage: "photo") }
                             Button { fileImporter = true } label: { Label("Файл", systemImage: "doc") }
+                            Button { recordCircle = true } label: { Label("Видеокружок", systemImage: "video.circle") }
                         } label: { Image(systemName: "paperclip").font(.title3).frame(width: 48, height: 48) }
                         .glass(Circle())
                     }
@@ -408,6 +470,7 @@ struct Bubble: View {
                 if chat.isGroup && !mine && first {
                     Text(store.userName(m.userId)).font(.caption.bold()).foregroundStyle(colorOf(m.userId))
                 }
+                if let f = m.forwardFrom { Text("Переслано от \(f.name)").font(.caption).foregroundStyle(sub) }
                 if let r = m.replyTo {
                     HStack(spacing: 6) {
                         RoundedRectangle(cornerRadius: 2).fill(blue).frame(width: 3)
@@ -422,9 +485,13 @@ struct Bubble: View {
                 }
                 if let img = m.image { photo(img) }
                 if let f = m.file {
-                    if f.kind == "voice" { VoiceRow(m: m, f: f, mine: mine) } else { fileRow(f, fg: fg) }
+                    if f.kind == "circle", let u = API.abs(f.url) { CircleVideo(url: u) }
+                    else if f.kind == "voice" { VoiceRow(m: m, f: f, mine: mine) } else { fileRow(f, fg: fg) }
                 }
-                if !m.text.isEmpty { Text(m.text).foregroundStyle(fg).padding(.horizontal, photoOnly ? 0 : 0) }
+                if !m.text.isEmpty { Text(linkified(m.text, link: mine && theme == nil ? Color(red: 0.04, green: 0.34, blue: 0.82) : Color(red: 0.54, green: 0.71, blue: 1))).foregroundStyle(fg) }
+                if !m.text.isEmpty && !m.isPending { LinkPreviewCard(text: m.text, dark: mine && theme == nil) }
+                if let t = m.transcript { Text("«\(t)»").font(.footnote.italic()).foregroundStyle(sub) }
+                ReactionsRow(m: m, dark: mine && theme == nil)
                 HStack(spacing: 3) {
                     Spacer(minLength: 0)
                     if m.editedAt != nil { Text("изм.").font(.caption2).foregroundStyle(sub) }

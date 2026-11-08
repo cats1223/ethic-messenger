@@ -5,10 +5,15 @@ struct ChatsView: View {
     @State private var store = Store.shared
     @State private var q = ""
     @State private var leaving: Chat?
+    @State private var folder = UserDefaults.standard.string(forKey: "folder") ?? "all"
 
     var body: some View {
+        // «Избранное» on top, then the newest.
         let list = store.sortedChats.filter { q.isEmpty || store.chatName($0).localizedCaseInsensitiveContains(q) }
+            .filter { ($0.isSaved && folder == "all") || (!$0.isSaved && chatInFolder($0, folder, store.folders)) }
+            .sorted { ($0.isSaved ? 1 : 0) > ($1.isSaved ? 1 : 0) }
         List {
+            FolderTabs(selected: $folder).listRowBackground(Color.clear).listRowSeparator(.hidden)
             if list.isEmpty {
                 Text("Пока нет чатов. Найдите друга во вкладке «Люди».").foregroundStyle(muted).listRowBackground(Color.clear)
             }
@@ -42,6 +47,9 @@ struct ChatRow: View {
 
     private var lastLine: String {
         if let r = chat.request { return r.from == store.me?.id ? "Заявка отправлена" : "Хочет написать вам" }
+        let draft = store.draft(chat.id)
+        if !draft.isEmpty && store.activeChat != chat.id { return "✏️ Черновик: \(draft)" }
+        if chat.isSaved && chat.lastMessage == nil { return "Заметки и пересланное" }
         guard let last = chat.lastMessage else { return previewText(nil) }
         var prefix = ""
         if last.userId == store.me?.id { prefix = "Вы: " } else if chat.isGroup { prefix = store.userName(last.userId) + ": " }
@@ -146,6 +154,8 @@ struct SettingsView: View {
                         Sounds.shared.ring(v, preview: true)
                         Task { try? await Task.sleep(nanoseconds: 3_000_000_000); Sounds.shared.stop() }
                     }
+                    NavigationLink(value: Route.privacy) { Label("Конфиденциальность", systemImage: "lock") }
+                    NavigationLink(value: Route.devices) { Label("Устройства", systemImage: "laptopcomputer.and.iphone") }
                     Toggle(isOn: $msgSound) { Label("Звуки сообщений", systemImage: "bell.badge") }
                         .onChange(of: msgSound) { _, v in Sounds.shared.messageSounds = v }
                         .tint(blue)
@@ -304,11 +314,25 @@ struct GroupView: View {
                     Button(role: .destructive) { leave = true } label: { Label("Покинуть группу", systemImage: "rectangle.portrait.and.arrow.right") }
                 }
                 Section("Участники") {
-                    ForEach(chat.members) { m in NavigationLink(value: Route.user(m.id)) { UserRow(user: store.users[m.id] ?? m) } }
+                    ForEach(chat.members) { m in
+                        HStack {
+                            NavigationLink(value: Route.user(m.id)) { UserRow(user: store.users[m.id] ?? m) }
+                            Text(m.id == chat.ownerId ? "создатель" : (chat.admins ?? []).contains(m.id) ? "админ" : "").font(.caption).foregroundStyle(muted)
+                            if chat.isAdmin(store.me?.id) && m.id != store.me?.id && m.id != chat.ownerId {
+                                Menu {
+                                    if chat.ownerId == store.me?.id {
+                                        let isAdmin = (chat.admins ?? []).contains(m.id)
+                                        Button(isAdmin ? "Снять администратора" : "Сделать администратором") { Task { do { try await store.setAdmin(chatId, m.id, !isAdmin) } catch { store.show(error.localizedDescription) } } }
+                                    }
+                                    Button("Исключить", role: .destructive) { Task { do { try await store.kick(chatId, m.id) } catch { store.show(error.localizedDescription) } } }
+                                } label: { Image(systemName: "ellipsis").foregroundStyle(muted).frame(width: 32, height: 32) }
+                            }
+                        }
+                    }
                 }
             }
         }
-        .navigationTitle("Группа").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(store.chats[chatId]?.isChannel == true ? "Канал" : "Группа").navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Покинуть группу?", isPresented: $leave, titleVisibility: .visible) {
             Button("Покинуть", role: .destructive) {
                 Task { do { try await store.leaveChat(chatId); Nav.shared.chatsPath = [] } catch { store.show(error.localizedDescription) } }
@@ -399,6 +423,7 @@ struct PickerView: View {
     @State private var store = Store.shared
     @State private var q = ""
     @State private var title = ""
+    @State private var channel = false
     @State private var found: [User] = []
     @State private var picked: Set<Int64> = []
     @Environment(\.dismiss) private var dismiss
@@ -406,7 +431,7 @@ struct PickerView: View {
     var body: some View {
         let exclude: [Int64] = mode == .addMember ? (store.chats[chatId]?.members.map(\.id) ?? []) : mode == .addToCall ? (Calls.shared.ui?.tiles.map(\.userId) ?? []) : []
         List {
-            if mode == .group { Section { TextField("Название группы", text: $title) } }
+            if mode == .group { Section { TextField("Название", text: $title); Toggle("Канал: пишут только администраторы", isOn: $channel) } }
             ForEach(found.filter { !exclude.contains($0.id) }) { u in
                 Button { tap(u) } label: {
                     HStack {
@@ -425,7 +450,7 @@ struct PickerView: View {
             if mode == .group {
                 Button("Создать") {
                     Task {
-                        do { let c = try await store.createGroup(title.trimmed, Array(picked)); Nav.shared.chatsPath = [.chat(c.id)] }
+                        do { let c = channel ? try await store.createChannel(title.trimmed, Array(picked)) : try await store.createGroup(title.trimmed, Array(picked)); Nav.shared.chatsPath = [.chat(c.id)] }
                         catch { store.show(error.localizedDescription) }
                     }
                 }

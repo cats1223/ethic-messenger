@@ -18,6 +18,7 @@ struct User: Codable, Identifiable, Hashable {
     var bio: String?
     var mute: Mute?
     var theme: String?
+    var lastSeenPrivacy: String?
 
     /// Muted by staff: reads everything, cannot write until it ends.
     struct Mute: Codable, Hashable {
@@ -64,12 +65,16 @@ struct Message: Codable, Identifiable, Hashable {
     var replyTo: ReplyRef?
     var editedAt: Double?
     var createdAt: Double = 0
+    var forwardFrom: ForwardRef?
+    var reactions: [Reaction]?
+    var expiresAt: Double?
+    var transcript: String?
     // Local only: messages being sent.
     var clientId: String?
     var pending: Bool?
     var localImage: Data?
 
-    enum CodingKeys: String, CodingKey { case id, chatId, userId, text, image, file, replyTo, editedAt, createdAt }
+    enum CodingKeys: String, CodingKey { case id, chatId, userId, text, image, file, replyTo, editedAt, createdAt, forwardFrom, reactions, expiresAt, transcript }
 
     var kind: String? { image != nil ? "photo" : file?.kind }
     var key: String { clientId ?? String(id) }
@@ -93,8 +98,16 @@ struct Chat: Codable, Identifiable, Hashable {
     var othersRead: Int64 = 0
     var call: CallInfo?
     var request: RequestRef?
+    var ownerId: Int64?
+    var admins: [Int64]?
+    var inviteCode: String?
+    var disappear: Int?
 
-    var isGroup: Bool { type == "group" }
+    /// Groups and channels both have a title and members.
+    var isGroup: Bool { type == "group" || type == "channel" }
+    var isChannel: Bool { type == "channel" }
+    var isSaved: Bool { type == "saved" }
+    func isAdmin(_ uid: Int64?) -> Bool { type == "direct" || type == "saved" || ownerId == uid || (admins ?? []).contains(uid ?? -1) }
     var sortKey: Double { lastMessage?.createdAt ?? createdAt }
 }
 
