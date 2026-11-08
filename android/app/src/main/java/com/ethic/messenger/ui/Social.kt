@@ -107,6 +107,9 @@ import com.ethic.messenger.data.User
 import com.ethic.messenger.media.Sounds
 import kotlinx.coroutines.launch
 
+/** The address people see and share: without a port. The app itself still talks to the server on 8443. */
+const val PUBLIC_URL = "https://ethicmessenger.duckdns.org"
+
 // ---------- links and @mentions in message text ----------
 private val URL_RE = Regex("""(https?://[^\s<]+|www\.[^\s<]+)""")
 private val MENTION_RE = Regex("""(^|[\s(])@([A-Za-z0-9_.]{2,32})""")
@@ -328,7 +331,7 @@ fun GroupSettingsDialog(chat: Chat, onDone: () -> Unit) {
     val c = chats[chat.id] ?: chat
     var title by remember { mutableStateOf(c.title.orEmpty()) }
     fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onFailure { Repo.toast(it.message ?: "Ошибка") } }
-    val link = c.inviteCode?.let { "${Api.BASE}/join/$it" }
+    val link = c.inviteCode?.let { "$PUBLIC_URL/join/$it" }
     AlertDialog(
         onDismissRequest = onDone,
         title = { Text(if (c.isChannel) "Настройки канала" else "Настройки группы") },

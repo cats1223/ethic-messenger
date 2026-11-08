@@ -11,6 +11,8 @@ struct JoinInfo: Codable { let id: Int64; var type: String?; var title: String?;
 struct Device: Codable, Identifiable { let id: String; var name: String?; var platform: String?; var app: String?; var createdAt: Double?; var lastSeen: Double?; var current: Bool? }
 struct LinkPreview: Codable { let url: String; var site: String?; var title: String?; var description: String?; var image: String? }
 
+/// The address people see and share: without a port. The app itself still talks to the server on 8443.
+let publicURL = "https://ethicmessenger.duckdns.org"
 let reactionEmojis = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👎", "🎉"]
 let chatTimers: [(Int, String)] = [(0, "Выключены"), (3600, "Через 1 час"), (86400, "Через 1 день"), (604800, "Через 7 дней")]
 let messageSoundKinds: [(String, String)] = [("drop", "Капля"), ("bubble", "Пузырь"), ("bell", "Колокольчик"), ("none", "Без звука")]
@@ -148,7 +150,7 @@ struct GroupSettingsSheet: View {
                     }
                     Section("Ссылка-приглашение") {
                         if let code = c.inviteCode {
-                            let link = "\(API.base)/join/\(code)"
+                            let link = "\(publicURL)/join/\(code)"
                             Text(link).font(.footnote.monospaced())
                             Button("Скопировать") { UIPasteboard.general.string = link; store.show("Скопировано") }
                             Button("Новая ссылка") { act { _ = try await store.invite(chatId) } }
