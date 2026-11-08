@@ -40,6 +40,8 @@ object Api {
         .build()
 
     @Volatile var token: String? = null
+    /** A lasting id of this phone: login limits count per device, not per account. */
+    @Volatile var deviceId: String = ""
 
     fun abs(url: String?): String? = when {
         url == null -> null
@@ -54,6 +56,7 @@ object Api {
             val rb = body?.let { json.encodeToString(JsonObject.serializer(), toJson(it) as JsonObject).toRequestBody(JSON_TYPE) }
             val req = Request.Builder().url(BASE + path).apply {
                 token?.let { header("Authorization", "Bearer $it") }
+                if (deviceId.isNotEmpty()) header("X-Device-Id", deviceId)
                 method(method, rb ?: if (method == "GET" || method == "DELETE") null else "{}".toRequestBody(JSON_TYPE))
             }.build()
             val res = try { http.newCall(req).execute() } catch (e: IOException) { throw ApiError("Нет соединения с сервером") }

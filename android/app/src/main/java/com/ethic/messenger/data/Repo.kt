@@ -61,6 +61,8 @@ object Repo {
     var inviteRequired = false
 
     fun init(ctx: Context) {
+        val p = ctx.getSharedPreferences("ethic", Context.MODE_PRIVATE)
+        Api.deviceId = p.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { p.edit().putString("deviceId", it).apply() }
         prefs = ctx.getSharedPreferences("ethic", Context.MODE_PRIVATE)
         Api.token = prefs.getString("token", null)
     }

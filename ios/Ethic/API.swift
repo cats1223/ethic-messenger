@@ -28,6 +28,13 @@ enum API {
     }
 
     static let decoder = JSONDecoder()
+    /// A lasting id of this phone: login limits count per device, not per account.
+    static let deviceId: String = {
+        if let id = UserDefaults.standard.string(forKey: "deviceId") { return id }
+        let id = UUID().uuidString
+        UserDefaults.standard.set(id, forKey: "deviceId")
+        return id
+    }()
 
     @discardableResult
     static func call(_ path: String, method: String = "GET", body: [String: Any?]? = nil) async throws -> [String: Any] {
@@ -35,6 +42,7 @@ enum API {
         req.httpMethod = method
         req.timeoutInterval = 30
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        req.setValue(deviceId, forHTTPHeaderField: "X-Device-Id")
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: body.mapValues { $0 ?? NSNull() })
@@ -71,6 +79,7 @@ enum API {
         req.timeoutInterval = 300
         req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        req.setValue(deviceId, forHTTPHeaderField: "X-Device-Id")
         let data: Data, res: URLResponse
         do { (data, res) = try await URLSession.shared.upload(for: req, fromFile: file) } catch { throw APIError(message: "Нет соединения") }
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
