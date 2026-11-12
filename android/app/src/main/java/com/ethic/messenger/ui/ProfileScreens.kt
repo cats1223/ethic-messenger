@@ -228,6 +228,7 @@ fun EditProfileScreen() {
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(me?.displayName.orEmpty()) }
     var bio by remember { mutableStateOf(me?.bio.orEmpty()) }
+    var username by remember { mutableStateOf(me?.username.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     fun uploadImage(uri: Uri, aspect: Float, maxW: Int, field: String) = scope.launch {
         busy = true
@@ -263,9 +264,16 @@ fun EditProfileScreen() {
             }
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(name, { name = it.take(48) }, "Отображаемое имя")
+                // A new username is allowed once in 30 days; until then the field is locked.
+                val nextChange = u.usernameNextChange?.takeIf { it > System.currentTimeMillis() }
+                androidx.compose.material3.OutlinedTextField(
+                    username, { v -> username = v.filter { it.isLetterOrDigit() && it.code < 128 || it == '_' || it == '.' }.take(32) }, Modifier.fillMaxWidth(),
+                    label = { Text("Юзернейм") }, singleLine = true, enabled = nextChange == null, shape = RoundedCornerShape(14.dp),
+                    supportingText = { Text(if (nextChange != null) "Следующая смена будет доступна ${fmtUntil(nextChange).substringBefore(',')}" else "Менять можно раз в 30 дней. Латиница, цифры, _ и точка.") },
+                )
                 androidx.compose.material3.OutlinedTextField(bio, { bio = it.take(190) }, Modifier.fillMaxWidth(), label = { Text("О себе") }, minLines = 2, maxLines = 5, shape = RoundedCornerShape(14.dp))
                 Button(
-                    { scope.launch { runCatching { Repo.updateMe(mapOf("displayName" to name.trim(), "bio" to bio.trim())) }.onSuccess { Repo.toast("Сохранено") }.onFailure { Repo.toast(it.message ?: "") } } },
+                    { scope.launch { runCatching { Repo.updateMe(buildMap { put("displayName", name.trim()); put("bio", bio.trim()); if (username.isNotBlank() && username != u.username) put("username", username) }) }.onSuccess { Repo.toast("Сохранено") }.onFailure { Repo.toast(it.message ?: "") } } },
                     Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 ) { Text("Сохранить", fontWeight = FontWeight.Bold) }

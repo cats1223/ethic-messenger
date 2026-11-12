@@ -21,6 +21,8 @@ struct User: Codable, Identifiable, Hashable {
     var plusUntil: Double?
     var nameStyle: String?
     var bio: String?
+    /// When the next change of username is allowed; only the person's own profile carries it.
+    var usernameNextChange: Double?
     var mute: Mute?
     var theme: String?
     var lastSeenPrivacy: String?

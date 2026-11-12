@@ -351,6 +351,7 @@ struct EditProfileView: View {
     @State private var store = Store.shared
     @State private var name = Store.shared.me?.displayName ?? ""
     @State private var bio = Store.shared.me?.bio ?? ""
+    @State private var username = Store.shared.me?.username ?? ""
     @State private var avatarItem: PhotosPickerItem?
     @State private var bannerItem: PhotosPickerItem?
     @State private var busy = false
@@ -380,12 +381,26 @@ struct EditProfileView: View {
                         Button("Сбросить") { save(["banner": nil]) }.foregroundStyle(muted)
                     }
                     Field(title: "Отображаемое имя", text: $name)
+                    // A new username is allowed once in 30 days; until then the field is locked.
+                    let nextChange = store.me?.usernameNextChange.flatMap { $0 > Date().timeIntervalSince1970 * 1000 ? $0 : nil }
+                    Field(title: "Юзернейм", text: $username).disabled(nextChange != nil).opacity(nextChange != nil ? 0.5 : 1)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .onChange(of: username) { _, v in
+                            let ok = String(v.filter { ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "_" || $0 == "." }.prefix(32))
+                            if ok != v { username = ok }
+                        }
+                    Text(nextChange.map { "Следующая смена будет доступна \(fmtUntil($0))" } ?? "Менять можно раз в 30 дней. Латиница, цифры, _ и точка.")
+                        .font(.footnote).foregroundStyle(muted).frame(maxWidth: .infinity, alignment: .leading)
                     TextField("О себе (до 190 символов)", text: $bio, axis: .vertical)
                         .lineLimit(2...5)
                         .padding(14)
                         .background(surface2, in: RoundedRectangle(cornerRadius: 14))
                         .onChange(of: bio) { _, v in if v.count > 190 { bio = String(v.prefix(190)) } }
-                    Button { save(["displayName": name.trimmed, "bio": bio.trimmed], toast: "Сохранено") } label: {
+                    Button {
+                        var body: [String: Any?] = ["displayName": name.trimmed, "bio": bio.trimmed]
+                        if !username.isEmpty, username != store.me?.username { body["username"] = username }
+                        save(body, toast: "Сохранено")
+                    } label: {
                         Text("Сохранить").font(.headline).frame(maxWidth: .infinity).frame(height: 50)
                             .background(.white, in: RoundedRectangle(cornerRadius: 14)).foregroundStyle(.black)
                     }

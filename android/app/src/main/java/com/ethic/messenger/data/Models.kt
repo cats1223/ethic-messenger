@@ -23,6 +23,8 @@ data class User(
     val plusUntil: Long? = null,
     val nameStyle: String? = null,
     val bio: String? = null,
+    /** When the next change of username is allowed; only the person's own profile carries it. */
+    val usernameNextChange: Long? = null,
     val mute: Mute? = null,
     val theme: String? = null,
     val lastSeenPrivacy: String? = null,
