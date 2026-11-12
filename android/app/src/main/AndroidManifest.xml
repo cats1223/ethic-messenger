@@ -50,6 +50,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ethic" android:host="qr" />
             </intent-filter>
+            <!-- «Открыть в приложении» on the gift page behind the hoodie's QR code. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ethic" android:host="hoodie" />
+            </intent-filter>
             <!-- The gift page behind the QR code on the Ethic hoodie. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
