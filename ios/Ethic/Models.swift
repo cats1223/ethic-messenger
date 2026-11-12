@@ -1,5 +1,8 @@
 import Foundation
 
+/// The messenger is closed for maintenance: the reason, when it opens again (free text), and this closure's id.
+struct Maintenance: Equatable { let reason: String; let back: String; let id: String }
+
 struct User: Codable, Identifiable, Hashable {
     let id: Int64
     var username: String = ""
@@ -14,6 +17,8 @@ struct User: Codable, Identifiable, Hashable {
     var email: String?
     var support: Bool?
     var plus: Bool?
+    /// A trial ends at this time; empty when Ethic+ has no end.
+    var plusUntil: Double?
     var nameStyle: String?
     var bio: String?
     var mute: Mute?
@@ -102,6 +107,8 @@ struct Chat: Codable, Identifiable, Hashable {
     var admins: [Int64]?
     var inviteCode: String?
     var disappear: Int?
+    /// Photo of a group or channel.
+    var avatar: String?
 
     /// Groups and channels both have a title and members.
     var isGroup: Bool { type == "group" || type == "channel" }

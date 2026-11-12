@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import AVKit
+import PhotosUI
 
 // MARK: models for the social features
 
@@ -139,11 +140,25 @@ struct GroupSettingsSheet: View {
     let chatId: Int64
     @State private var store = Store.shared
     @State private var title = ""
+    @State private var photo: PhotosPickerItem?
+    @State private var busy = false
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         NavigationStack {
             Form {
                 if let c = store.chats[chatId] {
+                    // Photo of the group or channel.
+                    Section {
+                        VStack(spacing: 10) {
+                            ChatAvatar(chat: c, size: 84)
+                            if busy { ProgressView() }
+                            HStack(spacing: 16) {
+                                PhotosPicker(selection: $photo, matching: .images) { Text(c.avatar == nil ? "Поставить фото" : "Сменить фото") }
+                                if c.avatar != nil { Button("Убрать", role: .destructive) { act { _ = try await store.patchChat(chatId, ["avatar": nil]) } } }
+                            }.buttonStyle(.borderless)
+                        }.frame(maxWidth: .infinity)
+                    }
+                    .onChange(of: photo) { _, item in uploadPhoto(item) }
                     Section("Название") {
                         TextField("Название", text: $title)
                         Button("Сохранить название") { act { _ = try await store.patchChat(chatId, ["title": title.trimmed]); store.show("Сохранено") } }
@@ -176,6 +191,20 @@ struct GroupSettingsSheet: View {
         }
     }
     private func act(_ f: @escaping () async throws -> Void) { Task { do { try await f() } catch { store.show(error.localizedDescription) } } }
+    private func uploadPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        busy = true
+        Task {
+            defer { busy = false; photo = nil }
+            guard let data = try? await item.loadTransferable(type: Data.self), let (file, _, _) = prepareImage(data, maxSide: 512, aspect: 1) else {
+                store.show("Не удалось открыть изображение"); return
+            }
+            do {
+                let up = try await API.upload(file: file, kind: "image", name: "image.jpg")
+                _ = try await store.patchChat(chatId, ["avatar": up.url]); store.show("Фото обновлено")
+            } catch { store.show(error.localizedDescription) }
+        }
+    }
 }
 
 struct SoundsSheet: View {
@@ -216,7 +245,10 @@ struct LinkDialogs: ViewModifier {
     @State private var join: (String, JoinInfo)?
     func body(content: Content) -> some View {
         content
-            .onOpenURL { store.pendingLink = $0.absoluteString }
+            .onOpenURL { url in
+                // The QR code on the Ethic hoodie; everything else is an invite or a sign-in link.
+                if url.path == "/hoodie" || url.host == "hoodie" { store.promoAccepted = false; store.promo = "hoodie" } else { store.pendingLink = url.absoluteString }
+            }
             .onChange(of: store.pendingLink) { _, link in Task { await resolve(link) } }
             .alert("Войти на компьютере?", isPresented: Binding(get: { qrToken != nil }, set: { if !$0 { store.pendingLink = nil } })) {
                 Button("Войти") {

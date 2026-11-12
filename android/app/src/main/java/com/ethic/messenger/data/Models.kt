@@ -19,6 +19,8 @@ data class User(
     val email: String? = null,
     val support: Boolean = false,
     val plus: Boolean = false,
+    /** A trial ends at this time; empty when Ethic+ has no end. */
+    val plusUntil: Long? = null,
     val nameStyle: String? = null,
     val bio: String? = null,
     val mute: Mute? = null,
@@ -118,6 +120,8 @@ data class Chat(
     val admins: List<Long> = emptyList(),
     val inviteCode: String? = null,
     val disappear: Int = 0,
+    /** Photo of a group or channel. */
+    val avatar: String? = null,
 ) {
     /** Groups and channels both have a title and members. */
     val isGroup get() = type == "group" || type == "channel"

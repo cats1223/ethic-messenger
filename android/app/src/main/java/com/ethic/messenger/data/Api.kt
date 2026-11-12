@@ -42,6 +42,8 @@ object Api {
     @Volatile var token: String? = null
     /** A lasting id of this phone: login limits count per device, not per account. */
     @Volatile var deviceId: String = ""
+    /** The key this device got for the current maintenance closure, sent with every request. */
+    @Volatile var maintKey: String = ""
 
     fun abs(url: String?): String? = when {
         url == null -> null
@@ -57,6 +59,7 @@ object Api {
             val req = Request.Builder().url(BASE + path).apply {
                 token?.let { header("Authorization", "Bearer $it") }
                 if (deviceId.isNotEmpty()) header("X-Device-Id", deviceId)
+                if (maintKey.isNotEmpty()) header("X-Maint-Key", maintKey)
                 method(method, rb ?: if (method == "GET" || method == "DELETE") null else "{}".toRequestBody(JSON_TYPE))
             }.build()
             val res = try { http.newCall(req).execute() } catch (e: IOException) { throw ApiError("Нет соединения с сервером") }
@@ -66,6 +69,7 @@ object Api {
                 if (!r.isSuccessful) {
                     val msg = (obj["error"] as? JsonPrimitive)?.content ?: "Ошибка ${r.code}"
                     val state = (obj["accountState"] as? JsonPrimitive)?.contentOrNull
+                    if (r.code == 503) (obj["maintenance"] as? JsonObject)?.let { Repo.onMaintenance(it, refused = true) }
                     if (r.code == 401 && state != null) Repo.onEnded(state, (obj["reason"] as? JsonPrimitive)?.contentOrNull, (obj["until"] as? JsonPrimitive)?.longOrNull)
                     else if (r.code == 401 && token != null && path != "/api/login") Repo.onUnauthorized()
                     throw ApiError(msg, r.code)

@@ -415,10 +415,8 @@ private fun SettingsTab() {
                     SettingsRow(Icons.Default.Email, "Обращения пользователей") { Nav.push(Route.Support(true)) }
                     HorizontalDivider(color = Line)
                 }
-                if (u.plus || u.role == "owner") {
-                    SettingsRow(Icons.Default.GraphicEq, "Подписка Ethic+", "Цвет ника, видео-баннер") { Nav.push(Route.Plus) }
-                    HorizontalDivider(color = Line)
-                }
+                SettingsRow(Icons.Default.GraphicEq, "Подписка Ethic+", if (u.plus) "Цвет ника, видео-баннер" else "Что даёт и где купить") { Nav.push(Route.Plus) }
+                HorizontalDivider(color = Line)
                 SettingsRow(Icons.Default.CardGiftcard, "Магазин подарков", "Подарки и Ethic Coin") { Nav.push(Route.Shop()) }
                 HorizontalDivider(color = Line)
                 SettingsRow(Icons.Default.NotificationsActive, "Поддержка", "Написать нам о проблеме или идее") { Nav.push(Route.Support(false)) }

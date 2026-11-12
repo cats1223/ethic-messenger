@@ -122,6 +122,7 @@ final class Store {
             emailEnabled = c["emailEnabled"] as? Bool ?? false
             inviteRequired = c["inviteRequired"] as? Bool ?? false
             stt = c["stt"] as? Bool ?? false
+            if let m = c["maintenance"] as? [String: Any] { onMaintenance(m) }
         }
     }
 
@@ -203,6 +204,57 @@ final class Store {
     func setChatSounds(_ chatId: Int64, msg: String?, ring: String?) {
         UserDefaults.standard.set(msg, forKey: "chatMsg:\(chatId)")
         UserDefaults.standard.set(ring, forKey: "chatRing:\(chatId)")
+    }
+
+    // MARK: gift by link
+    /// Name of the gift the person came for (the QR code on the hoodie opens …/hoodie).
+    var promo: String?
+    /// «Войти в аккаунт и получить» was pressed before signing in.
+    var promoAccepted = false
+
+    /// Asks the server for the gift; returns the time Ethic+ ends.
+    func claimPromo() async throws -> Double {
+        guard let name = promo else { return 0 }
+        promo = nil; promoAccepted = false
+        let res = try await API.call("/api/promo/\(name)", method: "POST", body: [:])
+        let u = try API.decode(User.self, res["user"])
+        me = u; remember([u])
+        return res["until"] as? Double ?? 0
+    }
+
+    // MARK: maintenance
+    /// The messenger is closed; `id` names this closure.
+    var maintenance: Maintenance?
+    /// Id of the closure this device holds a key for.
+    var maintUnlocked = UserDefaults.standard.string(forKey: "maintId") ?? ""
+    /// The server refused this account without the key.
+    var maintDenied = false
+
+    func onMaintenance(_ m: [String: Any], refused: Bool = false) {
+        let on = m["on"] as? Bool ?? false
+        let was = maintenance
+        if refused {
+            maintDenied = true; maintUnlocked = ""; API.maintKey = ""
+            UserDefaults.standard.removeObject(forKey: "maintKey"); UserDefaults.standard.removeObject(forKey: "maintId")
+        }
+        maintenance = on ? Maintenance(reason: m["reason"] as? String ?? "", back: m["back"] as? String ?? "", id: m["id"] as? String ?? "") : nil
+        // Opened again: load everything that was refused while it was closed.
+        if !on, was != nil { maintDenied = false; Task { await reload() } }
+    }
+
+    func unlockMaintenance(_ password: String) async throws {
+        let res = try await API.call("/api/maintenance/unlock", method: "POST", body: ["password": password])
+        let key = res["key"] as? String ?? ""
+        let id = (res["maintenance"] as? [String: Any])?["id"] as? String ?? ""
+        API.maintKey = key; maintUnlocked = id; maintDenied = false
+        UserDefaults.standard.set(key, forKey: "maintKey"); UserDefaults.standard.set(id, forKey: "maintId")
+        await reload()
+    }
+
+    /// Signs in again with the saved token, after the messenger opens or the password is accepted.
+    private func reload() async {
+        guard API.token != nil, let res = try? await API.call("/api/me"), let u = try? API.decode(User.self, res["user"]) else { return }
+        await start(u)
     }
 
     // MARK: banned, deleted, warned
@@ -446,6 +498,7 @@ final class Store {
 
     private func handle(_ ev: [String: Any]) {
         switch ev["type"] as? String {
+        case "maintenance": onMaintenance(ev)
         case "message":
             if let m = try? API.decode(Message.self, ev["message"]) { onMessage(m, clientId: ev["clientId"] as? String) }
         case "message:update":

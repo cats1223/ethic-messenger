@@ -171,11 +171,11 @@ function setupPermissions() {
   ses.setDisplayMediaRequestHandler(async (_req, cb) => {
     try {
       const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
-      const id = await pickSource(sources.filter((s) => !s.name.startsWith('Ethic Messenger') || s.id.startsWith('screen')));
-      const source = sources.find((s) => s.id === id);
+      const choice = await pickSource(sources.filter((s) => !s.name.startsWith('Ethic Messenger') || s.id.startsWith('screen')));
+      const source = sources.find((s) => s.id === choice?.id);
       if (!source) return cb({});
-      // System audio is only available for whole screens on Windows.
-      cb(source.id.startsWith('screen') ? { video: source, audio: 'loopback' } : { video: source });
+      // System audio is only available for whole screens on Windows, and only if it was left on in the picker.
+      cb(source.id.startsWith('screen') && choice.audio !== false ? { video: source, audio: 'loopback' } : { video: source });
     } catch {
       cb({});
     }

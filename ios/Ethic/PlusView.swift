@@ -67,6 +67,7 @@ struct PlusView: View {
         List {
             if let u = store.me {
                 if u.plus == true {
+                    if let until = u.plusUntil { Section { Text("Подписка действует до \(fmtUntil(until))").foregroundStyle(amber) } }
                     Section("Цвет ника") {
                         NameLine(name: u.displayName, user: u, font: .title2.weight(.heavy))
                         ForEach(styles, id: \.1) { v, label in
@@ -101,7 +102,7 @@ struct PlusView: View {
                         Text("MP4, до 25 МБ").font(.caption).foregroundStyle(muted)
                     }
                 } else {
-                    Text("Подписки пока нет. Выдайте её себе в списке ниже.").foregroundStyle(muted)
+                    PlusOffer(owner: owner)
                 }
             }
             if owner {

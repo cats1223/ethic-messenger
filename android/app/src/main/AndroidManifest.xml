@@ -50,6 +50,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ethic" android:host="qr" />
             </intent-filter>
+            <!-- The gift page behind the QR code on the Ethic hoodie. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="ethicmessenger.duckdns.org" android:port="8443" android:path="/hoodie" />
+            </intent-filter>
             <!-- Group invite links. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

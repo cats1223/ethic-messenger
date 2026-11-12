@@ -152,8 +152,28 @@ fun PlusScreen() {
             item {
                 Section {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (!u.plus) Text("Подписки пока нет. Выдайте её себе в списке ниже.", color = Muted)
-                        else {
+                        if (!u.plus) {
+                            // Everyone sees what the subscription gives and where to buy it.
+                            Text("Подписка для тех, кто хочет выделяться. Вот что она даёт:", color = Muted, fontSize = 14.sp)
+                            PLUS_PERKS.forEach { (title, about) ->
+                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface2).padding(12.dp)) {
+                                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text(about, color = Muted, fontSize = 13.sp)
+                                }
+                            }
+                            if (owner) Text("Вы владелец: выдайте подписку себе в списке ниже.", color = Muted, fontSize = 13.sp)
+                            else {
+                                androidx.compose.material3.Button(
+                                    { runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PLUS_BUY_URL))) } },
+                                    Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                                ) { Text("Купить Ethic+", fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
+                                Text("Покупка проходит на Playerok. После оплаты подписку включает администрация Ethic.", color = Muted, fontSize = 13.sp)
+                            }
+                            androidx.compose.material3.HorizontalDivider(color = Line)
+                            Text("Если найдёте человека с толстовкой Ethic, отсканируйте QR-код на ней и получите подарок.", fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        } else {
+                            u.plusUntil?.let { Text("Подписка действует до ${fmtUntil(it)}", color = Color(0xFFF0B232), fontSize = 13.sp) }
                             Text("Цвет ника", color = Muted, fontSize = 13.sp)
                             Row(verticalAlignment = Alignment.CenterVertically) { NameLine(u.displayName, u, fontSize = 22, weight = FontWeight.ExtraBold) }
                             STYLES.forEach { (v, label) ->

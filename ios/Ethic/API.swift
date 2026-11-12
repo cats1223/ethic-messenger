@@ -10,6 +10,8 @@ enum API {
     static let base = "https://ethicmessenger.duckdns.org:8443"
     static let ws = base.replacingOccurrences(of: "https://", with: "wss://") + "/ws"
     static var token: String? = UserDefaults.standard.string(forKey: "token")
+    /// The key this device got for the current maintenance closure, sent with every request.
+    static var maintKey = UserDefaults.standard.string(forKey: "maintKey") ?? ""
 
     static func abs(_ url: String?) -> URL? {
         guard let url else { return nil }
@@ -43,6 +45,7 @@ enum API {
         req.timeoutInterval = 30
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         req.setValue(deviceId, forHTTPHeaderField: "X-Device-Id")
+        if !maintKey.isEmpty { req.setValue(maintKey, forHTTPHeaderField: "X-Maint-Key") }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: body.mapValues { $0 ?? NSNull() })
@@ -52,6 +55,7 @@ enum API {
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         let status = (res as? HTTPURLResponse)?.statusCode ?? 0
         if !(200..<300).contains(status) {
+            if status == 503, let m = obj["maintenance"] as? [String: Any] { await MainActor.run { Store.shared.onMaintenance(m, refused: true) } }
             if status == 401, let state = obj["accountState"] as? String {
                 let reason = obj["reason"] as? String
                 let until = obj["until"] as? Double

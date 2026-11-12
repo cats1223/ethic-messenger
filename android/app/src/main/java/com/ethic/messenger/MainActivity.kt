@@ -88,6 +88,8 @@ class MainActivity : ComponentActivity() {
         CallManager.handleIntent(intent)
         // ethic://qr/… from the phone camera, or a group link opened in the app.
         intent?.data?.toString()?.takeIf { it.startsWith("ethic://qr/") || it.contains("/join/") }?.let { Repo.pendingLink.value = it }
+        // The QR code on the Ethic hoodie.
+        if (intent?.data?.path?.trimEnd('/') == "/hoodie") { Repo.promoAccepted.value = false; Repo.promo.value = "hoodie" }
         intent?.getLongExtra("chatId", 0L)?.takeIf { it > 0 }?.let { Nav.openChat(it) }
     }
 }
@@ -191,6 +193,8 @@ private fun Root(onReady: () -> Unit) {
         com.ethic.messenger.ui.LinkDialogs()
         com.ethic.messenger.ui.WarningScreen()
         com.ethic.messenger.ui.EndedScreen()
+        com.ethic.messenger.ui.PromoScreen()
+        com.ethic.messenger.ui.MaintenanceScreen()
     }
 }
 

@@ -65,6 +65,55 @@ object Repo {
         Api.deviceId = p.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { p.edit().putString("deviceId", it).apply() }
         prefs = ctx.getSharedPreferences("ethic", Context.MODE_PRIVATE)
         Api.token = prefs.getString("token", null)
+        prefs.getString("maintKey", null)?.split(":")?.takeIf { it.size == 2 }?.let { maintUnlocked.value = it[0]; Api.maintKey = it[1] }
+    }
+
+    // ---------- gift by link ----------
+    /** Name of the gift the person came for (the QR code on the hoodie opens …/hoodie). */
+    val promo = MutableStateFlow<String?>(null)
+    /** «Войти в аккаунт и получить» was pressed before signing in. */
+    val promoAccepted = MutableStateFlow(false)
+
+    /** Asks the server for the gift; returns the time Ethic+ ends. */
+    suspend fun claimPromo(): Long {
+        val name = promo.value ?: return 0
+        promo.value = null; promoAccepted.value = false
+        val res = Api.call("/api/promo/$name", "POST", emptyMap())
+        val u: User = Api.json.decodeFromJsonElement(res["user"]!!)
+        me.value = merge(me.value, u)
+        remember(listOf(u))
+        return res["until"]?.jsonPrimitive?.longOrNull ?: 0
+    }
+
+    // ---------- maintenance ----------
+    /** The messenger is closed: reason, when it opens again (free text) and the id of this closure. */
+    data class Maintenance(val reason: String, val back: String, val id: String)
+    val maintenance = MutableStateFlow<Maintenance?>(null)
+    /** Id of the closure this device holds a key for. */
+    val maintUnlocked = MutableStateFlow("")
+    /** The server refused this account without the key. */
+    val maintDenied = MutableStateFlow(false)
+    val signedIn get() = Api.token != null
+
+    fun onMaintenance(obj: JsonObject, refused: Boolean = false) {
+        val on = obj["on"]?.jsonPrimitive?.contentOrNull == "true"
+        val was = maintenance.value
+        if (refused) { maintDenied.value = true; maintUnlocked.value = ""; Api.maintKey = ""; prefs.edit().remove("maintKey").apply() }
+        maintenance.value = if (!on) null else Maintenance(
+            obj["reason"]?.jsonPrimitive?.contentOrNull.orEmpty(), obj["back"]?.jsonPrimitive?.contentOrNull.orEmpty(), obj["id"]?.jsonPrimitive?.contentOrNull.orEmpty())
+        // Opened again: load everything that was refused while it was closed.
+        if (!on && was != null) { maintDenied.value = false; scope.launch { runCatching { restore() } } }
+    }
+
+    suspend fun unlockMaintenance(password: String) {
+        val res = Api.call("/api/maintenance/unlock", "POST", mapOf("password" to password))
+        val key = res["key"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val id = (res["maintenance"] as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()
+        Api.maintKey = key
+        prefs.edit().putString("maintKey", "$id:$key").apply()
+        maintUnlocked.value = id
+        maintDenied.value = false
+        runCatching { restore() }
     }
 
     fun toast(text: String) { events.tryEmit(AppEvent.Toast(text)) }
@@ -91,6 +140,7 @@ object Repo {
             emailEnabled = it["emailEnabled"]?.jsonPrimitive?.contentOrNull == "true"
             inviteRequired = it["inviteRequired"]?.jsonPrimitive?.contentOrNull == "true"
             stt = it["stt"]?.jsonPrimitive?.contentOrNull == "true"
+            (it["maintenance"] as? JsonObject)?.let { m -> onMaintenance(m) }
         }
     }
 
@@ -469,6 +519,7 @@ object Repo {
     private fun handle(ev: JsonObject) {
         val j = Api.json
         when (ev["type"]?.jsonPrimitive?.content) {
+            "maintenance" -> onMaintenance(ev)
             "message" -> onMessage(j.decodeFromJsonElement(ev["message"]!!), ev["clientId"]?.jsonPrimitive?.contentOrNull)
             "message:update" -> {
                 val m: Message = j.decodeFromJsonElement(ev["message"]!!)

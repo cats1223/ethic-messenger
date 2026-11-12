@@ -100,6 +100,7 @@ fun ChatAvatar(chat: Chat, size: Dp, other: User?) {
         Icon(Icons.Default.StarBorder, null, tint = Color.White, modifier = Modifier.size(size * 0.55f))
     }
     if (!chat.isGroup) return Avatar(other, size, online = other?.online == true)
+    if (chat.avatar != null) return AsyncImage(Api.abs(chat.avatar), null, Modifier.size(size).clip(CircleShape).background(Surface3), contentScale = ContentScale.Crop)
     Box(Modifier.size(size).clip(CircleShape).background(colorOf(chat.id)), contentAlignment = Alignment.Center) {
         val t = chat.title.orEmpty()
         if (t.isNotBlank()) Text(initials(t), color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.36f).sp)

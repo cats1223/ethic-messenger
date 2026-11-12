@@ -61,6 +61,9 @@ struct ChatAvatar: View {
             // «Избранное»: black and white star.
             Image(systemName: "star").font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white)
                 .frame(width: size, height: size).background(Color(white: 0.12), in: Circle()).overlay(Circle().stroke(Color.white.opacity(0.12)))
+        } else if chat.isGroup, let url = API.abs(chat.avatar) {
+            AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { surface3 }
+                .frame(width: size, height: size).clipShape(Circle())
         } else if chat.isGroup {
             ZStack {
                 colorOf(chat.id)

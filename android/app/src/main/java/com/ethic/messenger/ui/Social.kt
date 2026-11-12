@@ -332,11 +332,33 @@ fun GroupSettingsDialog(chat: Chat, onDone: () -> Unit) {
     var title by remember { mutableStateOf(c.title.orEmpty()) }
     fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onFailure { Repo.toast(it.message ?: "Ошибка") } }
     val link = c.inviteCode?.let { "$PUBLIC_URL/join/$it" }
+    val ctx = LocalContext.current
+    var busy by remember { mutableStateOf(false) }
+    // Photo of the group or channel: cropped to a square and uploaded.
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) act {
+            busy = true
+            try {
+                val (file, _, _) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { prepareImage(ctx, uri, 512, 1f) }
+                val (url, _, _) = Api.upload(ctx, android.net.Uri.fromFile(file), "image", "image.jpg")
+                Repo.patchChat(c.id, mapOf("avatar" to url)); Repo.toast("Фото обновлено")
+            } finally { busy = false }
+        }
+    }
     AlertDialog(
         onDismissRequest = onDone,
         title = { Text(if (c.isChannel) "Настройки канала" else "Настройки группы") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ChatAvatar(c, 84.dp, null)
+                    if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.width(84.dp), color = Blue)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton({ pickPhoto.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(if (c.avatar != null) "Сменить фото" else "Поставить фото") }
+                        if (c.avatar != null) TextButton({ act { Repo.patchChat(c.id, mapOf("avatar" to null)) } }) { Text("Убрать", color = Red) }
+                    }
+                }
+                HorizontalDivider(color = Line)
                 OutlinedTextField(title, { title = it.take(64) }, Modifier.fillMaxWidth(), label = { Text("Название") }, singleLine = true)
                 TextButton({ act { Repo.patchChat(c.id, mapOf("title" to title.trim())); Repo.toast("Сохранено") } }) { Text("Сохранить название") }
                 HorizontalDivider(color = Line)
